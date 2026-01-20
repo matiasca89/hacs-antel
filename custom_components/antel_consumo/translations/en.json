@@ -1,0 +1,44 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Configure Antel Consumo",
+        "description": "Enter your Mi Antel credentials to get internet consumption data.",
+        "data": {
+          "username": "Username",
+          "password": "Password"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Failed to connect to Antel",
+      "invalid_auth": "Invalid credentials",
+      "unknown": "Unexpected error"
+    },
+    "abort": {
+      "already_configured": "This account is already configured"
+    }
+  },
+  "entity": {
+    "sensor": {
+      "used_data": {
+        "name": "Used Data"
+      },
+      "total_data": {
+        "name": "Total Data"
+      },
+      "remaining_data": {
+        "name": "Remaining Data"
+      },
+      "percentage_used": {
+        "name": "Percentage Used"
+      },
+      "plan_name": {
+        "name": "Plan Name"
+      },
+      "billing_period": {
+        "name": "Billing Period"
+      }
+    }
+  }
+}

@@ -1,0 +1,44 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Configurar Antel Consumo",
+        "description": "Ingresa tus credenciales de Mi Antel para obtener los datos de consumo de internet.",
+        "data": {
+          "username": "Usuario",
+          "password": "Contraseña"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "No se pudo conectar a Antel",
+      "invalid_auth": "Credenciales inválidas",
+      "unknown": "Error inesperado"
+    },
+    "abort": {
+      "already_configured": "Esta cuenta ya está configurada"
+    }
+  },
+  "entity": {
+    "sensor": {
+      "used_data": {
+        "name": "Datos Usados"
+      },
+      "total_data": {
+        "name": "Datos Totales"
+      },
+      "remaining_data": {
+        "name": "Datos Restantes"
+      },
+      "percentage_used": {
+        "name": "Porcentaje Usado"
+      },
+      "plan_name": {
+        "name": "Nombre del Plan"
+      },
+      "billing_period": {
+        "name": "Período de Facturación"
+      }
+    }
+  }
+}
