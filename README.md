@@ -1,111 +1,169 @@
-# Antel Consumo Internet - Home Assistant Integration
+# Antel Consumo Internet - Home Assistant Add-on
 
 [![hacs_badge](https://img.shields.io/badge/HACS-Custom-41BDF5.svg)](https://github.com/hacs/integration)
 
-Integración de Home Assistant para monitorear el consumo de datos de internet de Antel (Uruguay).
+Add-on de Home Assistant para monitorear el consumo de datos de internet de Antel (Uruguay).
 
 ## Características
 
-- Monitoreo del consumo de datos de internet
-- Datos usados, totales y restantes en GB
-- Porcentaje de consumo
-- Nombre del plan
-- Período de facturación
-- Actualización automática cada hora
+- 📊 Monitoreo del consumo de datos de internet
+- 📈 Datos usados, totales y restantes en GB
+- 📅 **Consumo diario** (se resetea automáticamente a medianoche)
+- 📉 Porcentaje de consumo
+- 📝 Nombre del plan y período de facturación
+- 🔄 Actualización automática configurable
 
 ## Requisitos
 
-- Home Assistant 2023.1 o superior
+- Home Assistant OS o Supervised
 - Cuenta de Mi Antel (https://aplicaciones.antel.com.uy/miAntel)
-- Chromium instalado en el sistema (para Playwright)
 
 ## Instalación
 
-### HACS (Recomendado)
+### Como Add-on (Recomendado)
 
-1. Abre HACS en Home Assistant
-2. Ve a "Integraciones"
-3. Haz clic en los tres puntos en la esquina superior derecha
-4. Selecciona "Repositorios personalizados"
-5. Agrega este repositorio: `https://github.com/tu-usuario/hacs_antel_consumo`
-6. Categoría: Integración
-7. Busca "Antel Consumo" e instálalo
-8. Reinicia Home Assistant
+1. Ve a **Settings** → **Add-ons** → **Add-on Store**
+2. Menú (⋮) → **Repositories**
+3. Agrega: `https://github.com/matiasca89/hacs-antel`
+4. Busca **"Antel Consumo"** e instálalo
+5. Configura el Add-on (ver sección Configuración)
+6. Inicia el Add-on
 
-### Manual
+### Instalación Manual (Custom Component)
 
-1. Descarga el contenido de este repositorio
-2. Copia la carpeta `custom_components/antel_consumo` a tu carpeta `config/custom_components/`
-3. Reinicia Home Assistant
-
-### Instalación de Playwright
-
-La integración usa Playwright para hacer web scraping. Necesitas instalar el navegador Chromium:
-
-```bash
-# En el contenedor de Home Assistant o en tu sistema
-pip install playwright
-playwright install chromium
-```
-
-Si usas Home Assistant OS o Docker, puede que necesites instalar dependencias adicionales:
-
-```bash
-playwright install-deps chromium
-```
+> ⚠️ **Nota:** La instalación como Custom Component requiere Python 3.12 o anterior. Home Assistant 2024.2+ usa Python 3.13 que no es compatible con Playwright. Se recomienda usar el **Add-on**.
 
 ## Configuración
 
-1. Ve a Configuración > Dispositivos y Servicios
-2. Haz clic en "+ Agregar Integración"
-3. Busca "Antel Consumo"
-4. Ingresa tus credenciales de Mi Antel
+En la pestaña **Configuration** del Add-on:
+
+```yaml
+username: "tu_cedula"
+password: "tu_contraseña"
+scan_interval: 60
+service_id: "ZU3367"
+```
+
+| Opción | Descripción | Default |
+|--------|-------------|---------|
+| `username` | Cédula de identidad (usuario Mi Antel) | (requerido) |
+| `password` | Contraseña de Mi Antel | (requerido) |
+| `scan_interval` | Intervalo de actualización en minutos | 60 |
+| `service_id` | ID del servicio a monitorear (ej: "ZU3367"). Dejá vacío para buscar automáticamente "Fibra" | "" |
 
 ## Sensores
 
-La integración crea los siguientes sensores:
+El Add-on crea los siguientes sensores automáticamente:
 
 | Sensor | Descripción | Unidad |
 |--------|-------------|--------|
-| `sensor.antel_internet_datos_usados` | Datos consumidos | GB |
-| `sensor.antel_internet_datos_totales` | Total de datos del plan | GB |
-| `sensor.antel_internet_datos_restantes` | Datos disponibles | GB |
-| `sensor.antel_internet_porcentaje_usado` | Porcentaje consumido | % |
-| `sensor.antel_internet_nombre_del_plan` | Nombre del plan contratado | - |
-| `sensor.antel_internet_periodo_de_facturacion` | Período actual | - |
+| `sensor.antel_datos_usados` | Datos consumidos en el período | GB |
+| `sensor.antel_datos_totales` | Total de datos del plan | GB |
+| `sensor.antel_datos_restantes` | Datos disponibles | GB |
+| `sensor.antel_porcentaje_usado` | Porcentaje consumido | % |
+| `sensor.antel_consumo_hoy` | **Consumo del día actual** (se resetea a medianoche) | GB |
+| `sensor.antel_plan` | Nombre del plan contratado | - |
+| `sensor.antel_periodo_facturacion` | Período de facturación actual | - |
 
-## Ejemplo de Automatización
+### Sensor de Consumo Diario
+
+El sensor `sensor.antel_consumo_hoy` trackea automáticamente cuántos GB consumiste hoy:
+
+- Se resetea a **0** a medianoche
+- Calcula la diferencia entre el consumo actual y el valor al inicio del día
+- Útil para gráficos y alertas de consumo diario
+
+## Ejemplos de Automatización
+
+### Alerta de consumo alto
 
 ```yaml
 automation:
   - alias: "Alerta de consumo alto"
     trigger:
       - platform: numeric_state
-        entity_id: sensor.antel_internet_porcentaje_usado
+        entity_id: sensor.antel_porcentaje_usado
         above: 80
     action:
       - service: notify.mobile_app
         data:
-          title: "Alerta de Consumo Antel"
+          title: "⚠️ Alerta de Consumo Antel"
           message: "Has consumido más del 80% de tus datos de internet"
+```
+
+### Alerta de consumo diario excesivo
+
+```yaml
+automation:
+  - alias: "Alerta consumo diario alto"
+    trigger:
+      - platform: numeric_state
+        entity_id: sensor.antel_consumo_hoy
+        above: 10
+    action:
+      - service: notify.mobile_app
+        data:
+          title: "📊 Consumo Alto Hoy"
+          message: "Llevas más de 10 GB consumidos hoy"
+```
+
+### Dashboard Card
+
+```yaml
+type: entities
+title: Consumo Antel
+entities:
+  - entity: sensor.antel_datos_usados
+    name: Usados
+  - entity: sensor.antel_datos_restantes
+    name: Restantes
+  - entity: sensor.antel_consumo_hoy
+    name: Hoy
+  - entity: sensor.antel_porcentaje_usado
+    name: Porcentaje
+```
+
+## Utility Meter (Opcional)
+
+Si querés trackear consumo semanal o mensual además del diario, podés crear un Utility Meter en `configuration.yaml`:
+
+```yaml
+utility_meter:
+  antel_consumo_semanal:
+    source: sensor.antel_datos_usados
+    cycle: weekly
+  antel_consumo_mensual:
+    source: sensor.antel_datos_usados
+    cycle: monthly
 ```
 
 ## Solución de Problemas
 
-### La integración no puede conectarse
+### El Add-on no inicia
 
-1. Verifica que tus credenciales sean correctas en Mi Antel
-2. Asegúrate de que Chromium esté instalado correctamente
-3. Revisa los logs de Home Assistant para más detalles
+1. Verificá los logs del Add-on en la pestaña **Log**
+2. Asegurate de que las credenciales sean correctas
+3. El primer inicio puede tardar unos minutos mientras descarga dependencias
 
-### Los datos no se actualizan
+### Los sensores no aparecen
 
-- La integración actualiza los datos cada hora por defecto
-- Puedes forzar una actualización desde Herramientas de Desarrollador > Servicios > `homeassistant.update_entity`
+- Los sensores se crean automáticamente después del primer scrape exitoso
+- Revisá **Developer Tools** → **States** y buscá "antel"
+- El scrape inicial puede tardar 2-3 minutos
 
-### Error de scraping
+### Error de login
 
-Si los selectores CSS cambian en la página de Antel, los datos pueden no extraerse correctamente. Por favor, abre un issue en GitHub si esto ocurre.
+- Verificá que podés acceder a https://aplicaciones.antel.com.uy/miAntel con tus credenciales
+- Si tenés múltiples servicios, especificá el `service_id` correcto
+
+### El consumo diario no se resetea
+
+- El reset ocurre cuando cambia el día (medianoche hora del servidor)
+- El Add-on guarda el baseline en `/data/daily_tracking.json`
+
+## Logs
+
+Para ver logs detallados, revisá la pestaña **Log** del Add-on en Home Assistant.
 
 ## Contribuir
 

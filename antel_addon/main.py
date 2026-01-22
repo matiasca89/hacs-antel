@@ -3,14 +3,13 @@ import json
 import logging
 import os
 import sys
-import time
+from datetime import datetime, date
 import requests
 from pathlib import Path
 
-# Adjust path to find the package if needed, or assume installed
+# Adjust path to find the package if needed
 sys.path.append("/app")
 
-# We will structure the container so this import works
 from antel_pkg.antel_scraper import AntelScraper
 
 # Configure logging
@@ -29,20 +28,67 @@ HEADERS = {
     "Content-Type": "application/json",
 }
 
+# Daily tracking file
+DAILY_DATA_FILE = Path("/data/daily_tracking.json")
+
+
 def get_config():
     """Read config from /data/options.json"""
     config_path = Path("/data/options.json")
     if not config_path.exists():
-        # Fallback for local testing
         return {
             "username": os.environ.get("ANTEL_USER"),
             "password": os.environ.get("ANTEL_PASS"),
-            "scan_interval": 60
+            "scan_interval": 60,
+            "service_id": ""
         }
     with open(config_path, "r") as f:
         return json.load(f)
 
-def update_sensor(entity_id, state, attributes=None, unit=None, icon=None):
+
+def load_daily_tracking():
+    """Load daily tracking data from persistent storage."""
+    if DAILY_DATA_FILE.exists():
+        try:
+            with open(DAILY_DATA_FILE, "r") as f:
+                return json.load(f)
+        except Exception as e:
+            logger.warning(f"Failed to load daily tracking: {e}")
+    return {}
+
+
+def save_daily_tracking(data):
+    """Save daily tracking data to persistent storage."""
+    try:
+        with open(DAILY_DATA_FILE, "w") as f:
+            json.dump(data, f)
+    except Exception as e:
+        logger.error(f"Failed to save daily tracking: {e}")
+
+
+def calculate_daily_consumption(current_used_gb: float) -> float:
+    """Calculate today's consumption based on baseline."""
+    today = date.today().isoformat()
+    tracking = load_daily_tracking()
+    
+    # Check if we have a baseline for today
+    if tracking.get("date") != today:
+        # New day - set baseline to current value
+        logger.info(f"New day detected ({today}). Setting baseline to {current_used_gb} GB")
+        tracking = {
+            "date": today,
+            "baseline_gb": current_used_gb
+        }
+        save_daily_tracking(tracking)
+        return 0.0
+    
+    # Calculate delta
+    baseline = tracking.get("baseline_gb", current_used_gb)
+    daily_consumption = max(0.0, current_used_gb - baseline)
+    return round(daily_consumption, 2)
+
+
+def update_sensor(entity_id, state, attributes=None, unit=None, icon=None, device_class=None):
     """Update a sensor state via Supervisor API."""
     url = f"{SUPERVISOR_API}/states/sensor.{entity_id}"
     payload = {
@@ -53,9 +99,12 @@ def update_sensor(entity_id, state, attributes=None, unit=None, icon=None):
         payload["attributes"]["unit_of_measurement"] = unit
     if icon:
         payload["attributes"]["icon"] = icon
+    if device_class:
+        payload["attributes"]["device_class"] = device_class
     
     # Friendly name attribute
-    payload["attributes"]["friendly_name"] = entity_id.replace("antel_", "Antel ").replace("_", " ").title()
+    friendly_name = entity_id.replace("antel_", "Antel ").replace("_", " ").title()
+    payload["attributes"]["friendly_name"] = friendly_name
 
     try:
         response = requests.post(url, headers=HEADERS, json=payload, timeout=10)
@@ -63,6 +112,7 @@ def update_sensor(entity_id, state, attributes=None, unit=None, icon=None):
         logger.debug(f"Updated {entity_id}: {state}")
     except Exception as e:
         logger.error(f"Failed to update sensor {entity_id}: {e}")
+
 
 async def main():
     logger.info("Antel Consumo Add-on started")
@@ -77,10 +127,6 @@ async def main():
         logger.error("Username and password are required in configuration")
         return
 
-    # Initialize scraper
-    # Note: AntelScraper uses playwright internally.
-    # We need to manage the lifecycle carefully.
-    
     while True:
         logger.info("Starting scrape cycle...")
         scraper = AntelScraper(username, password, service_id if service_id else None)
@@ -88,9 +134,23 @@ async def main():
             data = await scraper.get_consumption_data()
             
             if data:
-                # Update sensors
+                # Update main sensors
                 if data.used_data_gb is not None:
                     update_sensor("antel_datos_usados", data.used_data_gb, unit="GB", icon="mdi:download")
+                    
+                    # Calculate and update daily consumption
+                    daily_gb = calculate_daily_consumption(data.used_data_gb)
+                    update_sensor(
+                        "antel_consumo_hoy",
+                        daily_gb,
+                        unit="GB",
+                        icon="mdi:calendar-today",
+                        attributes={
+                            "state_class": "total_increasing",
+                            "last_reset": date.today().isoformat()
+                        }
+                    )
+                    logger.info(f"Daily consumption: {daily_gb} GB")
                 
                 if data.total_data_gb is not None:
                     update_sensor("antel_datos_totales", data.total_data_gb, unit="GB", icon="mdi:database")
@@ -118,6 +178,7 @@ async def main():
         
         logger.info(f"Sleeping for {scan_interval} minutes...")
         await asyncio.sleep(scan_interval * 60)
+
 
 if __name__ == "__main__":
     asyncio.run(main())
