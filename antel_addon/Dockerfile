@@ -4,14 +4,14 @@ ENV LANG C.UTF-8
 ENV PYTHONDONTWRITEBYTECODE 1
 ENV PYTHONUNBUFFERED 1
 
-# Install runtime dependencies (jq for scripts if needed)
+# Install runtime dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
     jq \
     && rm -rf /var/lib/apt/lists/*
 
 # Install python dependencies
-# Playwright is already installed in this image, just need requests
-RUN pip install --no-cache-dir requests
+# We install playwright python package to ensure it's available in the env
+RUN pip install --no-cache-dir requests playwright==1.49.0
 
 WORKDIR /app
 
