@@ -6,6 +6,6 @@
   "documentation": "https://github.com/matiasca89/hacs-antel",
   "issue_tracker": "https://github.com/matiasca89/hacs-antel/issues",
   "iot_class": "cloud_polling",
-  "requirements": ["playwright==1.40.0"],
-  "version": "1.0.0"
+  "requirements": ["playwright==1.50.0"],
+  "version": "1.0.1"
 }
