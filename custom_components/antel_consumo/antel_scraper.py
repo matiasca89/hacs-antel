@@ -232,30 +232,30 @@ class AntelScraper:
             ).first
 
             # Remaining data ("Me quedan")
-            remaining_value = await service_card.query_selector("span.value-data")
-            if remaining_value:
+            remaining_value = service_card.locator("span.value-data").first
+            if await remaining_value.count():
                 value_text = await remaining_value.text_content() or ""
                 unit_text = ""
-                unit_element = await service_card.query_selector("span.value-data + small")
-                if unit_element:
+                unit_element = service_card.locator("span.value-data + small").first
+                if await unit_element.count():
                     unit_text = await unit_element.text_content() or ""
                 remaining_text = f"{value_text} {unit_text}".strip()
                 raw_data["remaining_text"] = remaining_text
                 data.remaining_data_gb = self._parse_data_value(remaining_text)
 
             # Used and total data from progress labels
-            used_label = await service_card.query_selector(
+            used_label = service_card.locator(
                 ".progress-bar__label:has-text('Consumidos')"
-            )
-            if used_label:
+            ).first
+            if await used_label.count():
                 used_text = await used_label.text_content() or ""
                 raw_data["used_label"] = used_text
                 data.used_data_gb = self._parse_data_value(used_text)
 
-            total_label = await service_card.query_selector(
+            total_label = service_card.locator(
                 ".progress-bar__label:has-text('Incluido')"
-            )
-            if total_label:
+            ).first
+            if await total_label.count():
                 total_text = await total_label.text_content() or ""
                 raw_data["total_label"] = total_text
                 data.total_data_gb = self._parse_data_value(total_text)
@@ -272,10 +272,10 @@ class AntelScraper:
             # Plan name (prefer card)
             if not data.plan_name:
                 try:
-                    plan_el = await service_card.query_selector(".plan-title")
+                    plan_el = service_card.locator(".plan-title").first
                 except Exception:
                     plan_el = None
-                if plan_el:
+                if plan_el and await plan_el.count():
                     plan_text = await plan_el.text_content() or ""
                     if plan_text.strip():
                         data.plan_name = plan_text.strip()
@@ -315,8 +315,16 @@ class AntelScraper:
         try:
             page = await context.new_page()
 
-            # Login
-            await self._login(page)
+            # Login with retries
+            for attempt in range(3):
+                try:
+                    await self._login(page)
+                    break
+                except AntelConnectionError:
+                    if attempt < 2:
+                        await asyncio.sleep(30)
+                        continue
+                    raise
 
             home_url = f"{ANTEL_BASE_URL}/miAntel/"
             try:
@@ -437,8 +445,15 @@ class AntelScraper:
 
         try:
             page = await context.new_page()
-            await self._login(page)
-            return True
+            for attempt in range(3):
+                try:
+                    await self._login(page)
+                    return True
+                except AntelConnectionError:
+                    if attempt < 2:
+                        await asyncio.sleep(30)
+                        continue
+                    raise
         except AntelAuthError:
             return False
         finally:
