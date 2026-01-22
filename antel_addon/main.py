@@ -167,6 +167,12 @@ async def main():
                 if data.billing_period:
                     update_sensor("antel_periodo_facturacion", data.billing_period, icon="mdi:calendar")
                 
+                if data.days_until_renewal is not None:
+                    update_sensor("antel_dias_para_renovar", data.days_until_renewal, unit="días", icon="mdi:calendar-refresh")
+                
+                if data.contract_end_date:
+                    update_sensor("antel_fin_contrato", data.contract_end_date, icon="mdi:calendar-end")
+                
                 logger.info("Scrape finished successfully. Data updated.")
             else:
                 logger.warning("Scrape finished but no data returned.")

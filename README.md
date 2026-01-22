@@ -62,6 +62,8 @@ El Add-on crea los siguientes sensores automáticamente:
 | `sensor.antel_datos_restantes` | Datos disponibles | GB |
 | `sensor.antel_porcentaje_usado` | Porcentaje consumido | % |
 | `sensor.antel_consumo_hoy` | **Consumo del día actual** (se resetea a medianoche) | GB |
+| `sensor.antel_dias_para_renovar` | **Días hasta la renovación** del pack de datos | días |
+| `sensor.antel_fin_contrato` | Fecha de fin de contrato | - |
 | `sensor.antel_plan` | Nombre del plan contratado | - |
 | `sensor.antel_periodo_facturacion` | Período de facturación actual | - |
 
