@@ -224,7 +224,11 @@ async def main():
                     update_sensor("antel_fin_contrato", data.contract_end_date, icon="mdi:calendar-end")
                 
                 # Calculate average usage sensors
+                logger.info(f"Billing period raw: '{data.billing_period}'")
+                logger.info(f"Days until renewal: {data.days_until_renewal}")
+                
                 days_elapsed = calculate_days_elapsed(data.billing_period)
+                logger.info(f"Days elapsed calculated: {days_elapsed}")
                 
                 if days_elapsed and data.used_data_gb is not None:
                     avg_daily_usage = round(data.used_data_gb / days_elapsed, 2)
