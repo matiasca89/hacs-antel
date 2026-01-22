@@ -17,4 +17,3 @@ schema:
   password: str
   scan_interval: int
 homeassistant_api: true
-image: "ghcr.io/matiasca89/antel-addon/{arch}"
