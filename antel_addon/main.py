@@ -70,11 +70,8 @@ async def main():
     config = get_config()
     username = config.get("username")
     password = config.get("password")
-    scan_interval = config.get("scan_interval", 60) * 60  # Minutes to seconds? No, usually options are seconds or minutes. Let's assume minutes based on typical add-ons, or seconds. config.yaml says int. Let's interpret as minutes for "scan_interval" usually implies time between scans. But HA standard is usually seconds? 
-    # Actually, default in const.py was 3600 (seconds). 
-    # Let's assume input is in minutes for user friendliness in Add-on UI? 
-    # Or seconds. Let's stick to minutes to be safe/user friendly or check standard. 
-    # Let's interpret as MINUTES.
+    scan_interval = config.get("scan_interval", 60)  # Minutes
+    service_id = config.get("service_id", "")
     
     if not username or not password:
         logger.error("Username and password are required in configuration")
@@ -86,7 +83,7 @@ async def main():
     
     while True:
         logger.info("Starting scrape cycle...")
-        scraper = AntelScraper(username, password)
+        scraper = AntelScraper(username, password, service_id if service_id else None)
         try:
             data = await scraper.get_consumption_data()
             

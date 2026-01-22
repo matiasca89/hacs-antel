@@ -44,10 +44,11 @@ class AntelConnectionError(AntelScraperError):
 class AntelScraper:
     """Scraper for Antel consumption data using Playwright."""
 
-    def __init__(self, username: str, password: str) -> None:
+    def __init__(self, username: str, password: str, service_id: str | None = None) -> None:
         """Initialize the scraper."""
         self._username = username
         self._password = password
+        self._service_id = service_id
         self._browser: Browser | None = None
 
     async def _ensure_browser(self) -> Browser:
@@ -227,8 +228,9 @@ class AntelScraper:
             await page.wait_for_load_state("networkidle", timeout=30000)
             await asyncio.sleep(2)
 
+            filter_text = self._service_id if self._service_id else "Fibra"
             service_card = page.locator(".servicioBox").filter(
-                has_text=re.compile("ZU3367|Fibra con límite 1", re.I)
+                has_text=re.compile(filter_text, re.I)
             ).first
 
             # Remaining data ("Me quedan")
@@ -415,9 +417,12 @@ class AntelScraper:
                         try:
                             await page.goto(home_url, wait_until="domcontentloaded", timeout=120000)
                             await page.wait_for_selector(".servicioBox", timeout=60000)
+                            
+                            filter_text = self._service_id if self._service_id else "Fibra"
                             service_card = page.locator(".servicioBox").filter(
-                                has_text=re.compile("ZU3367|Fibra", re.I)
+                                has_text=re.compile(filter_text, re.I)
                             ).first
+                            
                             if await service_card.count():
                                 service_link = service_card.locator("a").first
                             else:
