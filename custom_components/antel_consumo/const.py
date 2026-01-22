@@ -3,7 +3,14 @@
 DOMAIN = "antel_consumo"
 
 # URLs
-ANTEL_LOGIN_URL = "https://aplicaciones.antel.com.uy/miAntel/consumo/internet"
+ANTEL_LOGIN_URL = (
+    "https://www.antel.com.uy/acceder/-/login/openid_connect_request"
+    "?p_p_state=maximized"
+    "&_com_liferay_login_web_portlet_LoginPortlet_saveLastPath=false"
+    "&_com_liferay_login_web_portlet_LoginPortlet_redirect=/"
+    "&_com_liferay_login_web_portlet_LoginPortlet_OPEN_ID_CONNECT_PROVIDER_NAME=TuID"
+)
+ANTEL_CONSUMO_INTERNET_URL = "https://aplicaciones.antel.com.uy/miAntel/consumo/internet"
 ANTEL_BASE_URL = "https://aplicaciones.antel.com.uy"
 
 # Update interval (1 hour)

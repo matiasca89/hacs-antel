@@ -4,12 +4,14 @@ from __future__ import annotations
 import asyncio
 import logging
 import re
+import time
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
 from playwright.async_api import async_playwright, Browser, Page, TimeoutError as PlaywrightTimeout
 
-from .const import ANTEL_LOGIN_URL
+from .const import ANTEL_BASE_URL, ANTEL_CONSUMO_INTERNET_URL, ANTEL_LOGIN_URL
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -73,131 +75,116 @@ class AntelScraper:
         """Perform login on Antel page."""
         try:
             _LOGGER.debug("Navigating to Antel login page")
-            await page.goto(ANTEL_LOGIN_URL, wait_until="networkidle", timeout=60000)
+            try:
+                await page.goto(ANTEL_LOGIN_URL, wait_until="domcontentloaded", timeout=120000)
+            except PlaywrightTimeout:
+                await page.goto(ANTEL_LOGIN_URL, wait_until="commit", timeout=120000)
 
-            # Wait for login form - adjust selectors based on actual page
-            # These are common patterns, may need adjustment
-            await page.wait_for_selector(
-                'input[type="text"], input[type="email"], input[name="username"], input[id*="user"], input[id*="email"]',
-                timeout=30000
-            )
+            # Select TuID method: Usuario y contraseña
+            try:
+                await page.get_by_role("link", name="Usuario y contraseña").click(timeout=30000)
+                await page.wait_for_load_state("domcontentloaded", timeout=30000)
+            except Exception:
+                pass
 
-            # Try different possible selectors for username field
-            username_selectors = [
-                'input[name="username"]',
-                'input[name="user"]',
-                'input[name="email"]',
-                'input[type="email"]',
-                'input[id*="user"]',
-                'input[id*="email"]',
-                'input[id*="login"]',
-                '#username',
-                '#user',
-                '#email',
-            ]
-
+            # Step 1: Username (Cédula o correo)
             username_input = None
-            for selector in username_selectors:
-                try:
-                    username_input = await page.query_selector(selector)
-                    if username_input:
-                        _LOGGER.debug("Found username input with selector: %s", selector)
-                        break
-                except Exception:
-                    continue
+            try:
+                username_input = page.get_by_role(
+                    "textbox",
+                    name="Cédula de identidad o correo electrónico",
+                )
+            except Exception:
+                username_input = None
 
-            if not username_input:
-                # Try getting first text input
-                username_input = await page.query_selector('input[type="text"]')
+            if username_input is None:
+                username_input = page.locator(
+                    'input[type="text"], input[type="email"]'
+                ).first
 
-            if not username_input:
-                raise AntelAuthError("Could not find username input field")
+            try:
+                await username_input.wait_for(state="visible", timeout=40000)
+            except Exception as err:
+                raise AntelAuthError("Could not find username input field") from err
 
-            # Fill username
             await username_input.fill(self._username)
 
-            # Try different possible selectors for password field
-            password_selectors = [
-                'input[name="password"]',
-                'input[name="pass"]',
-                'input[type="password"]',
-                'input[id*="password"]',
-                'input[id*="pass"]',
-                '#password',
-                '#pass',
-            ]
+            try:
+                await page.get_by_role("button", name="Continuar").click(timeout=30000)
+                await page.wait_for_load_state("domcontentloaded", timeout=40000)
+            except Exception as err:
+                raise AntelAuthError("Could not submit username") from err
 
+            # Step 2: Password
             password_input = None
-            for selector in password_selectors:
+            timeout_ms = 60000
+            start = asyncio.get_event_loop().time()
+            while asyncio.get_event_loop().time() - start < timeout_ms / 1000:
                 try:
-                    password_input = await page.query_selector(selector)
-                    if password_input:
-                        _LOGGER.debug("Found password input with selector: %s", selector)
-                        break
+                    password_input = page.get_by_role("textbox", name="Contraseña")
                 except Exception:
-                    continue
+                    password_input = None
 
-            if not password_input:
+                if password_input is None:
+                    password_input = page.locator('input[type="password"]').first
+
+                try:
+                    await password_input.wait_for(state="visible", timeout=2000)
+                    break
+                except Exception:
+                    password_input = None
+
+                for frame in page.frames:
+                    try:
+                        candidate = frame.get_by_role("textbox", name="Contraseña")
+                        await candidate.wait_for(state="visible", timeout=1000)
+                        password_input = candidate
+                        break
+                    except Exception:
+                        pass
+
+                    try:
+                        candidate = frame.locator('input[type="password"]').first
+                        await candidate.wait_for(state="visible", timeout=1000)
+                        password_input = candidate
+                        break
+                    except Exception:
+                        pass
+
+                if password_input:
+                    break
+
+                await asyncio.sleep(0.5)
+
+            if password_input is None:
                 raise AntelAuthError("Could not find password input field")
 
-            # Fill password
             await password_input.fill(self._password)
 
-            # Try different possible selectors for submit button
-            submit_selectors = [
-                'button[type="submit"]',
-                'input[type="submit"]',
-                'button:has-text("Ingresar")',
-                'button:has-text("Iniciar")',
-                'button:has-text("Entrar")',
-                'button:has-text("Login")',
-                '.btn-login',
-                '.login-button',
-                '#login-button',
-                '#submit',
-            ]
+            try:
+                await page.get_by_role("button", name="Continuar").click(timeout=30000)
+            except Exception as err:
+                raise AntelAuthError("Could not submit password") from err
 
-            submit_button = None
-            for selector in submit_selectors:
-                try:
-                    submit_button = await page.query_selector(selector)
-                    if submit_button:
-                        _LOGGER.debug("Found submit button with selector: %s", selector)
-                        break
-                except Exception:
-                    continue
-
-            if submit_button:
-                await submit_button.click()
-            else:
-                # Try pressing Enter on password field
-                await password_input.press("Enter")
-
-            # Wait for navigation after login
-            await page.wait_for_load_state("networkidle", timeout=30000)
-
-            # Check for login errors
-            error_selectors = [
-                '.error',
-                '.alert-danger',
-                '.login-error',
-                '[class*="error"]',
-                '[class*="invalid"]',
-            ]
-
-            for selector in error_selectors:
-                error_element = await page.query_selector(selector)
-                if error_element:
-                    error_text = await error_element.text_content()
-                    if error_text and len(error_text.strip()) > 0:
-                        _LOGGER.error("Login error detected: %s", error_text)
-                        raise AntelAuthError(f"Login failed: {error_text}")
+            try:
+                await page.wait_for_load_state("networkidle", timeout=60000)
+            except PlaywrightTimeout:
+                pass
 
             _LOGGER.debug("Login successful")
             return True
 
         except PlaywrightTimeout as err:
             _LOGGER.error("Timeout during login: %s", err)
+            try:
+                artifacts_dir = Path("/root/src/hacs-antel/artifacts")
+                artifacts_dir.mkdir(parents=True, exist_ok=True)
+                stamp = int(time.time())
+                await page.screenshot(path=str(artifacts_dir / f"antel_login_timeout_{stamp}.png"), full_page=True)
+                html = await page.content()
+                (artifacts_dir / f"antel_login_timeout_{stamp}.html").write_text(html, encoding="utf-8")
+            except Exception:
+                pass
             raise AntelConnectionError("Timeout connecting to Antel") from err
         except AntelAuthError:
             raise
@@ -237,155 +224,77 @@ class AntelScraper:
         raw_data: dict[str, Any] = {}
 
         try:
-            # Wait for consumption data to load
             await page.wait_for_load_state("networkidle", timeout=30000)
-
-            # Give some time for dynamic content to load
             await asyncio.sleep(2)
 
-            # Get page content for debugging
-            page_content = await page.content()
-            _LOGGER.debug("Page content length: %d", len(page_content))
+            service_card = page.locator(".servicioBox").filter(
+                has_text=re.compile("ZU3367|Fibra con límite 1", re.I)
+            ).first
 
-            # Try to find consumption data - these selectors need to be adjusted
-            # based on the actual page structure
+            # Remaining data ("Me quedan")
+            remaining_value = await service_card.query_selector("span.value-data")
+            if remaining_value:
+                value_text = await remaining_value.text_content() or ""
+                unit_text = ""
+                unit_element = await service_card.query_selector("span.value-data + small")
+                if unit_element:
+                    unit_text = await unit_element.text_content() or ""
+                remaining_text = f"{value_text} {unit_text}".strip()
+                raw_data["remaining_text"] = remaining_text
+                data.remaining_data_gb = self._parse_data_value(remaining_text)
 
-            # Common patterns for data consumption display
-            consumption_selectors = [
-                # Progress bars
-                '.progress-bar',
-                '[class*="progress"]',
-                '[class*="consumo"]',
-                '[class*="usage"]',
-                # Data display elements
-                '.data-usage',
-                '.consumption-data',
-                '.internet-usage',
-                '[class*="data"]',
-                # Specific text patterns
-                'text=/\\d+[.,]?\\d*\\s*(GB|MB|TB)/i',
-            ]
+            # Used and total data from progress labels
+            used_label = await service_card.query_selector(
+                ".progress-bar__label:has-text('Consumidos')"
+            )
+            if used_label:
+                used_text = await used_label.text_content() or ""
+                raw_data["used_label"] = used_text
+                data.used_data_gb = self._parse_data_value(used_text)
 
-            # Try to find used data
-            used_data_patterns = [
-                '[class*="usado"]',
-                '[class*="used"]',
-                '[class*="consumido"]',
-                ':has-text("Usado")',
-                ':has-text("Consumido")',
-            ]
+            total_label = await service_card.query_selector(
+                ".progress-bar__label:has-text('Incluido')"
+            )
+            if total_label:
+                total_text = await total_label.text_content() or ""
+                raw_data["total_label"] = total_text
+                data.total_data_gb = self._parse_data_value(total_text)
 
-            for selector in used_data_patterns:
+            # Billing period
+            body_text = await page.inner_text("body")
+            raw_data["body_text_sample"] = body_text[:1000] if body_text else None
+            if body_text:
+                match = re.search(r"Ciclo actual:\s*([^\n]+)", body_text)
+                if match:
+                    data.billing_period = match.group(1).strip()
+                    raw_data["billing_period"] = data.billing_period
+
+            # Plan name (prefer card)
+            if not data.plan_name:
                 try:
-                    element = await page.query_selector(selector)
-                    if element:
-                        text = await element.text_content()
-                        if text:
-                            raw_data['used_element'] = text
-                            value = self._parse_data_value(text)
-                            if value is not None:
-                                data.used_data_gb = value
-                                _LOGGER.debug("Found used data: %s GB", value)
-                                break
-                except Exception as e:
-                    _LOGGER.debug("Error with selector %s: %s", selector, e)
-                    continue
+                    plan_el = await service_card.query_selector(".plan-title")
+                except Exception:
+                    plan_el = None
+                if plan_el:
+                    plan_text = await plan_el.text_content() or ""
+                    if plan_text.strip():
+                        data.plan_name = plan_text.strip()
+                        raw_data["plan_name"] = data.plan_name
 
-            # Try to find total data
-            total_data_patterns = [
-                '[class*="total"]',
-                '[class*="plan"]',
-                '[class*="disponible"]',
-                ':has-text("Total")',
-                ':has-text("Plan")',
-            ]
+            # Fallback: extract from body
+            if not data.plan_name and body_text:
+                plan_match = re.search(r"(Fibra[^\n]+)", body_text)
+                if plan_match:
+                    data.plan_name = plan_match.group(1).strip()
+                    raw_data["plan_name"] = data.plan_name
 
-            for selector in total_data_patterns:
-                try:
-                    element = await page.query_selector(selector)
-                    if element:
-                        text = await element.text_content()
-                        if text:
-                            raw_data['total_element'] = text
-                            value = self._parse_data_value(text)
-                            if value is not None:
-                                data.total_data_gb = value
-                                _LOGGER.debug("Found total data: %s GB", value)
-                                break
-                except Exception as e:
-                    _LOGGER.debug("Error with selector %s: %s", selector, e)
-                    continue
-
-            # Try to extract all text and find data patterns
-            body_text = await page.inner_text('body')
-            raw_data['body_text_sample'] = body_text[:1000] if body_text else None
-
-            # Look for GB/MB patterns in text
-            data_matches = re.findall(r'([\d.,]+)\s*(GB|MB|TB)', body_text, re.IGNORECASE)
-            if data_matches:
-                raw_data['data_matches'] = data_matches
-                _LOGGER.debug("Found data patterns: %s", data_matches)
-
-                # If we don't have used/total yet, try to infer from matches
-                if data.used_data_gb is None and len(data_matches) >= 1:
-                    value = float(data_matches[0][0].replace(',', '.'))
-                    unit = data_matches[0][1].upper()
-                    if unit == 'MB':
-                        value /= 1024
-                    data.used_data_gb = value
-
-                if data.total_data_gb is None and len(data_matches) >= 2:
-                    value = float(data_matches[1][0].replace(',', '.'))
-                    unit = data_matches[1][1].upper()
-                    if unit == 'MB':
-                        value /= 1024
-                    data.total_data_gb = value
-
-            # Calculate remaining and percentage
-            if data.used_data_gb is not None and data.total_data_gb is not None:
+            # Calculate remaining and percentage if needed
+            if data.remaining_data_gb is None and data.used_data_gb is not None and data.total_data_gb is not None:
                 data.remaining_data_gb = data.total_data_gb - data.used_data_gb
+
+            if data.used_data_gb is not None and data.total_data_gb is not None:
                 if data.total_data_gb > 0:
                     data.percentage_used = (data.used_data_gb / data.total_data_gb) * 100
-
-            # Try to find plan name
-            plan_patterns = [
-                '[class*="plan"]',
-                '[class*="nombre"]',
-                ':has-text("Plan")',
-            ]
-
-            for selector in plan_patterns:
-                try:
-                    element = await page.query_selector(selector)
-                    if element:
-                        text = await element.text_content()
-                        if text and 'GB' not in text.upper():
-                            data.plan_name = text.strip()
-                            raw_data['plan_name'] = text
-                            break
-                except Exception:
-                    continue
-
-            # Try to find billing period
-            period_patterns = [
-                '[class*="periodo"]',
-                '[class*="fecha"]',
-                '[class*="billing"]',
-                ':has-text("Período")',
-                ':has-text("Vence")',
-            ]
-
-            for selector in period_patterns:
-                try:
-                    element = await page.query_selector(selector)
-                    if element:
-                        text = await element.text_content()
-                        if text:
-                            data.billing_period = text.strip()
-                            raw_data['billing_period'] = text
-                            break
-                except Exception:
-                    continue
 
             data.raw_data = raw_data
             return data
@@ -409,13 +318,109 @@ class AntelScraper:
             # Login
             await self._login(page)
 
-            # Navigate to consumption page if not already there
-            current_url = page.url
-            if "consumo" not in current_url.lower():
-                await page.goto(ANTEL_LOGIN_URL, wait_until="networkidle", timeout=60000)
+            home_url = f"{ANTEL_BASE_URL}/miAntel/"
+            try:
+                await page.goto(home_url, wait_until="domcontentloaded", timeout=120000)
+                await page.wait_for_load_state("networkidle", timeout=60000)
+            except PlaywrightTimeout:
+                pass
 
-            # Extract data
+            # Open user menu and navigate to Autogestión y trámites en línea
+            try:
+                user_menu = page.get_by_role("button", name=re.compile("mi cuenta|perfil|usuario|bienvenido", re.I))
+                if await user_menu.count():
+                    await user_menu.first.click(timeout=30000)
+                else:
+                    menu_toggle = page.locator(".tMenu_toggle, .menu-usuario, .user-menu, .dropdown-toggle").first
+                    if await menu_toggle.count():
+                        await menu_toggle.click(timeout=30000)
+
+                await page.get_by_role(
+                    "link",
+                    name=re.compile("autogestión y trámites en línea", re.I),
+                ).click(timeout=30000)
+                await page.wait_for_load_state("networkidle", timeout=60000)
+            except Exception:
+                pass
+
+            # Navigate to internet consumption page
+            try:
+                await page.goto(ANTEL_CONSUMO_INTERNET_URL, wait_until="domcontentloaded", timeout=120000)
+            except PlaywrightTimeout:
+                try:
+                    await page.goto(ANTEL_CONSUMO_INTERNET_URL, wait_until="load", timeout=120000)
+                except PlaywrightTimeout:
+                    await page.goto(ANTEL_CONSUMO_INTERNET_URL, wait_until="commit", timeout=120000)
+            except Exception:
+                try:
+                    artifacts_dir = Path("/root/src/hacs-antel/artifacts")
+                    artifacts_dir.mkdir(parents=True, exist_ok=True)
+                    stamp = int(time.time())
+                    await page.screenshot(path=str(artifacts_dir / f"antel_consumo_goto_{stamp}.png"), full_page=True)
+                    html = await page.content()
+                    (artifacts_dir / f"antel_consumo_goto_{stamp}.html").write_text(html, encoding="utf-8")
+                except Exception:
+                    pass
+                raise
+
+            try:
+                await page.wait_for_load_state("networkidle", timeout=60000)
+            except PlaywrightTimeout:
+                pass
+
+            try:
+                await page.wait_for_selector(
+                    "span.value-data, .progress-bar__label",
+                    timeout=60000,
+                )
+            except Exception:
+                try:
+                    dashboard_link = page.get_by_role("link", name="Detalle de consumo")
+                    await dashboard_link.click(timeout=20000)
+                    await page.wait_for_load_state("networkidle", timeout=60000)
+                    await page.wait_for_selector("span.value-data", timeout=30000)
+                except Exception:
+                    pass
+
             data = await self._extract_consumption_data(page)
+
+            if data.raw_data and data.raw_data.get("body_text_sample"):
+                if "inconveniente" in data.raw_data["body_text_sample"].lower():
+                    try:
+                        artifacts_dir = Path("/root/src/hacs-antel/artifacts")
+                        artifacts_dir.mkdir(parents=True, exist_ok=True)
+                        stamp = int(time.time())
+                        await page.screenshot(path=str(artifacts_dir / f"antel_error_{stamp}.png"), full_page=True)
+                        html = await page.content()
+                        (artifacts_dir / f"antel_error_{stamp}.html").write_text(html, encoding="utf-8")
+                    except Exception:
+                        pass
+
+                    try:
+                        await page.goto(ANTEL_CONSUMO_INTERNET_URL, wait_until="domcontentloaded", timeout=120000)
+                        await page.wait_for_load_state("networkidle", timeout=60000)
+                    except PlaywrightTimeout:
+                        pass
+                    data = await self._extract_consumption_data(page)
+
+                    if data.used_data_gb is None and data.total_data_gb is None:
+                        try:
+                            await page.goto(home_url, wait_until="domcontentloaded", timeout=120000)
+                            await page.wait_for_selector(".servicioBox", timeout=60000)
+                            service_card = page.locator(".servicioBox").filter(
+                                has_text=re.compile("ZU3367|Fibra", re.I)
+                            ).first
+                            if await service_card.count():
+                                service_link = service_card.locator("a").first
+                            else:
+                                service_link = page.locator(".servicioBox.internet a").first
+                            if await service_link.count():
+                                await service_link.click(timeout=30000)
+                                await page.wait_for_load_state("networkidle", timeout=60000)
+                                await page.wait_for_selector("span.value-data", timeout=60000)
+                        except Exception:
+                            pass
+                        data = await self._extract_consumption_data(page)
 
             return data
 

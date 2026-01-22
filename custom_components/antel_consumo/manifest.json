@@ -1,10 +1,10 @@
 {
   "domain": "antel_consumo",
   "name": "Antel Consumo Internet",
-  "codeowners": ["@tu-usuario-github"],
+  "codeowners": ["@matiasca89"],
   "config_flow": true,
-  "documentation": "https://github.com/tu-usuario-github/hacs_antel_consumo",
-  "issue_tracker": "https://github.com/tu-usuario-github/hacs_antel_consumo/issues",
+  "documentation": "https://github.com/matiasca89/hacs-antel",
+  "issue_tracker": "https://github.com/matiasca89/hacs-antel/issues",
   "iot_class": "cloud_polling",
   "requirements": ["playwright==1.40.0"],
   "version": "1.0.0"
