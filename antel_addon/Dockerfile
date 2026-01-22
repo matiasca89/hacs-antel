@@ -18,17 +18,12 @@ RUN pip install --no-cache-dir playwright==1.40.0 requests && \
 
 WORKDIR /app
 
-# Create package structure
-RUN mkdir -p /app/antel_pkg
-RUN touch /app/antel_pkg/__init__.py
-
-# Copy scraper code into package
-COPY custom_components/antel_consumo/antel_scraper.py /app/antel_pkg/antel_scraper.py
-COPY custom_components/antel_consumo/const.py /app/antel_pkg/const.py
+# Copy scraper package
+COPY antel_pkg /app/antel_pkg
 
 # Copy add-on main script and runner
-COPY antel_addon/main.py /app/main.py
-COPY antel_addon/run.sh /app/run.sh
+COPY main.py /app/main.py
+COPY run.sh /app/run.sh
 
 RUN chmod a+x /app/run.sh
 
