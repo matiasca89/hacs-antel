@@ -34,24 +34,33 @@ DAILY_DATA_FILE = Path("/data/daily_tracking.json")
 
 
 def calculate_renewal_dates(renewal_day: int):
-    """Calculate next renewal date, days remaining, and days passed since month start."""
+    """Calculate next renewal date, days remaining, and days passed since last renewal."""
     today = date.today()
     # Clamp renewal_day to valid day in month
     days_in_month = calendar.monthrange(today.year, today.month)[1]
     renewal_day = max(1, min(int(renewal_day), 31))
     day_this_month = min(renewal_day, days_in_month)
 
+    # Next renewal date
     if today.day <= day_this_month:
         renewal_date = date(today.year, today.month, day_this_month)
     else:
-        # Next month
         year = today.year + (1 if today.month == 12 else 0)
         month = 1 if today.month == 12 else today.month + 1
         days_next_month = calendar.monthrange(year, month)[1]
         renewal_date = date(year, month, min(renewal_day, days_next_month))
 
+    # Last renewal date
+    if today.day >= day_this_month:
+        last_renewal = date(today.year, today.month, day_this_month)
+    else:
+        year = today.year - (1 if today.month == 1 else 0)
+        month = 12 if today.month == 1 else today.month - 1
+        days_prev_month = calendar.monthrange(year, month)[1]
+        last_renewal = date(year, month, min(renewal_day, days_prev_month))
+
     days_remaining = (renewal_date - today).days
-    days_passed = today.day - 1  # days from month start to today
+    days_passed = (today - last_renewal).days
     return renewal_date, days_remaining, days_passed
 
 
@@ -198,7 +207,7 @@ async def main():
                         renewal_date, days_remaining, days_passed = calculate_renewal_dates(int(renewal_day))
                         update_sensor("antel_fecha_renovacion", renewal_date.isoformat(), icon="mdi:calendar")
                         update_sensor("antel_dias_hasta_renovacion", days_remaining, unit="días", icon="mdi:calendar-clock")
-                        update_sensor("antel_dias_pasados_del_mes", days_passed, unit="días", icon="mdi:calendar-check")
+                        update_sensor("antel_dias_pasados_del_contrato", days_passed, unit="días", icon="mdi:calendar-check")
                     except Exception as e:
                         logger.warning(f"Failed to calculate renewal_day sensors: {e}")
                 
