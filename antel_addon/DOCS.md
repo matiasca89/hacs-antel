@@ -24,6 +24,8 @@ Este Add-on hace scraping de la página de Mi Antel para obtener el consumo de d
 - `sensor.antel_fecha_renovacion` - Fecha de renovación del saldo
 - `sensor.antel_dias_hasta_renovacion` - Días restantes hasta renovar
 - `sensor.antel_dias_pasados_del_contrato` - Días pasados desde última renovación
+- `sensor.antel_promedio_uso_diario` - Promedio de uso diario (GB usados / días pasados)
+- `sensor.antel_promedio_restante_diario` - Promedio disponible diario (GB restantes / días hasta renovación)
 - `sensor.antel_plan` - Nombre del plan
 - `sensor.antel_periodo_facturacion` - Período actual
 

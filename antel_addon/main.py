@@ -208,6 +208,14 @@ async def main():
                         update_sensor("antel_fecha_renovacion", renewal_date.isoformat(), icon="mdi:calendar")
                         update_sensor("antel_dias_hasta_renovacion", days_remaining, unit="días", icon="mdi:calendar-clock")
                         update_sensor("antel_dias_pasados_del_contrato", days_passed, unit="días", icon="mdi:calendar-check")
+
+                        # Average usage sensors
+                        if data.used_data_gb is not None and days_passed > 0:
+                            avg_used = round(data.used_data_gb / days_passed, 2)
+                            update_sensor("antel_promedio_uso_diario", avg_used, unit="GB/día", icon="mdi:chart-line")
+                        if data.remaining_data_gb is not None and days_remaining > 0:
+                            avg_remaining = round(data.remaining_data_gb / days_remaining, 2)
+                            update_sensor("antel_promedio_restante_diario", avg_remaining, unit="GB/día", icon="mdi:chart-timeline-variant")
                     except Exception as e:
                         logger.warning(f"Failed to calculate renewal_day sensors: {e}")
                 

@@ -67,6 +67,8 @@ El Add-on crea los siguientes sensores automáticamente:
 | `sensor.antel_fecha_renovacion` | Fecha de renovación del saldo (calculada) | - |
 | `sensor.antel_dias_hasta_renovacion` | Días restantes hasta la renovación | días |
 | `sensor.antel_dias_pasados_del_contrato` | Días pasados desde la última renovación | días |
+| `sensor.antel_promedio_uso_diario` | Promedio de uso diario (GB usados / días pasados) | GB/día |
+| `sensor.antel_promedio_restante_diario` | Promedio disponible diario (GB restantes / días hasta renovación) | GB/día |
 | `sensor.antel_plan` | Nombre del plan contratado | - |
 | `sensor.antel_periodo_facturacion` | Período de facturación actual | - |
 
