@@ -43,11 +43,10 @@ SPANISH_MONTHS = {
 def parse_billing_period(billing_period: str) -> tuple[date | None, date | None]:
     """Parse billing period like '1 de enero al 31 de enero' to dates."""
     if not billing_period:
-        logger.warning("parse_billing_period received empty input")
+        logger.warning("DEBUG: parse_billing_period received empty input")
         return None, None
     
     try:
-        logger.info(f"Parsing billing period: '{billing_period}'")
         # Match pattern: "DD de MES al DD de MES"
         match = re.search(
             r'(\d{1,2})\s+de\s+(\w+)\s+al\s+(\d{1,2})\s+de\s+(\w+)',
@@ -59,7 +58,7 @@ def parse_billing_period(billing_period: str) -> tuple[date | None, date | None]
             end_day = int(match.group(3))
             end_month = SPANISH_MONTHS.get(match.group(4))
             
-            logger.info(f"Parsed dates: {start_day}/{start_month} to {end_day}/{end_month}")
+            logger.warning(f"DEBUG: Parsed dates -> {start_day}/{start_month} to {end_day}/{end_month}")
             
             if start_month and end_month:
                 year = date.today().year
@@ -82,10 +81,10 @@ def calculate_days_elapsed(billing_period: str) -> int | None:
     if start_date:
         today = date.today()
         days_elapsed = (today - start_date).days + 1  # +1 to include start day
-        logger.info(f"Start date: {start_date}, Today: {today}, Elapsed: {days_elapsed}")
+        logger.warning(f"DEBUG: Start date: {start_date}, Today: {today}, Elapsed: {days_elapsed}")
         return max(1, days_elapsed)  # At least 1 day
     else:
-        logger.warning(f"Could not calculate days elapsed. Start date not found for '{billing_period}'")
+        logger.warning(f"DEBUG: Could not calculate days elapsed. Start date not found for '{billing_period}'")
     return None
 
 
@@ -191,7 +190,7 @@ async def main():
             data = await scraper.get_consumption_data()
             
             if data:
-                logger.info(f"Raw Data: billing='{data.billing_period}', renewal={data.days_until_renewal}, used={data.used_data_gb}")
+                logger.warning(f"DEBUG: Raw Data -> billing='{data.billing_period}', renewal={data.days_until_renewal}, used={data.used_data_gb}")
                 
                 # Update main sensors
                 if data.used_data_gb is not None:
@@ -233,11 +232,11 @@ async def main():
                     update_sensor("antel_fin_contrato", data.contract_end_date, icon="mdi:calendar-end")
                 
                 # Calculate average usage sensors
-                logger.info(f"Billing period raw: '{data.billing_period}'")
-                logger.info(f"Days until renewal: {data.days_until_renewal}")
+                logger.warning(f"DEBUG: Billing period raw: '{data.billing_period}'")
+                logger.warning(f"DEBUG: Days until renewal: {data.days_until_renewal}")
                 
                 days_elapsed = calculate_days_elapsed(data.billing_period)
-                logger.info(f"Days elapsed calculated: {days_elapsed}")
+                logger.warning(f"DEBUG: Days elapsed calculated: {days_elapsed}")
                 
                 if days_elapsed and data.used_data_gb is not None:
                     avg_daily_usage = round(data.used_data_gb / days_elapsed, 2)
