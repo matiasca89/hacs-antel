@@ -265,22 +265,29 @@ class AntelScraper:
                 data.total_data_gb = self._parse_data_value(total_text)
 
             # Billing period
-            body_text = await page.inner_text("body")
-            raw_data["body_text_sample"] = body_text[:1000] if body_text else None
-            if body_text:
-                match = re.search(r"Ciclo actual:\s*([^\n]+)", body_text)
+            # Use content() to get full HTML because some info might be hidden (mobile-only classes)
+            body_html = await page.content()
+            raw_data["body_html_sample"] = body_html[:1000] if body_html else None
+            
+            if body_html:
+                # Regex modified to stop at < (HTML tag start) or newline
+                match = re.search(r"Ciclo actual:\s*([^<\n]+)", body_html)
                 if match:
                     data.billing_period = match.group(1).strip()
                     raw_data["billing_period"] = data.billing_period
 
                 # Days until renewal ("Quedan X días para renovar")
-                renewal_match = re.search(r"Quedan?\s*(\d+)\s*d[íi]as?\s*(para\s*)?renovar", body_text, re.IGNORECASE)
+                renewal_match = re.search(r"Quedan?\s*(\d+)\s*d[íi]as?\s*(para\s*)?renovar", body_html, re.IGNORECASE)
                 if renewal_match:
                     data.days_until_renewal = int(renewal_match.group(1))
                     raw_data["days_until_renewal"] = data.days_until_renewal
 
                 # Contract end date ("Fin de contrato: DD/MM/YYYY")
-                contract_match = re.search(r"Fin de contrato[:\s]*(\d{1,2}/\d{1,2}/\d{4})", body_text, re.IGNORECASE)
+                contract_match = re.search(r"Fin de contrato[:\s]*<[^>]+>\s*(\d{1,2}/\d{1,2}/\d{4})", body_html, re.IGNORECASE)
+                # Fallback for plain text
+                if not contract_match:
+                     contract_match = re.search(r"Fin de contrato[:\s]*(\d{1,2}/\d{1,2}/\d{4})", body_html, re.IGNORECASE)
+                
                 if contract_match:
                     data.contract_end_date = contract_match.group(1)
                     raw_data["contract_end_date"] = data.contract_end_date
