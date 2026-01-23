@@ -26,8 +26,6 @@ class AntelConsumoData:
     percentage_used: float | None = None
     plan_name: str | None = None
     billing_period: str | None = None
-    days_until_renewal: int | None = None
-    contract_end_date: str | None = None
     raw_data: dict[str, Any] | None = None
 
 
@@ -272,18 +270,6 @@ class AntelScraper:
                 if match:
                     data.billing_period = match.group(1).strip()
                     raw_data["billing_period"] = data.billing_period
-
-                # Days until renewal ("Quedan X días para renovar")
-                renewal_match = re.search(r"Quedan?\s*(\d+)\s*d[íi]as?\s*(para\s*)?renovar", body_text, re.IGNORECASE)
-                if renewal_match:
-                    data.days_until_renewal = int(renewal_match.group(1))
-                    raw_data["days_until_renewal"] = data.days_until_renewal
-
-                # Contract end date ("Fin de contrato: DD/MM/YYYY")
-                contract_match = re.search(r"Fin de contrato[:\s]*(\d{1,2}/\d{1,2}/\d{4})", body_text, re.IGNORECASE)
-                if contract_match:
-                    data.contract_end_date = contract_match.group(1)
-                    raw_data["contract_end_date"] = data.contract_end_date
 
             # Plan name (prefer card)
             if not data.plan_name:

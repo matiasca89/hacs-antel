@@ -2,7 +2,6 @@ import asyncio
 import json
 import logging
 import os
-import re
 import sys
 from datetime import datetime, date
 import requests
@@ -135,13 +134,6 @@ async def main():
             data = await scraper.get_consumption_data()
             
             if data:
-                logger.info(f"Raw Data: billing='{data.billing_period}', renewal={data.days_until_renewal}, used={data.used_data_gb}")
-                
-                # If extraction failed, log HTML sample to debug
-                if data.used_data_gb is None and data.raw_data and data.raw_data.get("body_html_sample"):
-                     logger.warning("Extraction failed! HTML Dump (first 2000 chars):")
-                     logger.warning(data.raw_data["body_html_sample"][:2000])
-                
                 # Update main sensors
                 if data.used_data_gb is not None:
                     update_sensor("antel_datos_usados", data.used_data_gb, unit="GB", icon="mdi:download")
@@ -174,12 +166,6 @@ async def main():
                 
                 if data.billing_period:
                     update_sensor("antel_periodo_facturacion", data.billing_period, icon="mdi:calendar")
-                
-                if data.days_until_renewal is not None:
-                    update_sensor("antel_dias_para_renovar", data.days_until_renewal, unit="días", icon="mdi:calendar-refresh")
-                
-                if data.contract_end_date:
-                    update_sensor("antel_fin_contrato", data.contract_end_date, icon="mdi:calendar-end")
                 
                 logger.info("Scrape finished successfully. Data updated.")
             else:

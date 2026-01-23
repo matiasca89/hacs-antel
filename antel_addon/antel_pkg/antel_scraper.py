@@ -26,8 +26,6 @@ class AntelConsumoData:
     percentage_used: float | None = None
     plan_name: str | None = None
     billing_period: str | None = None
-    days_until_renewal: int | None = None
-    contract_end_date: str | None = None
     raw_data: dict[str, Any] | None = None
 
 
@@ -221,14 +219,6 @@ class AntelScraper:
 
         return None
 
-    def _clean_html_text(self, text: str) -> str:
-        """Remove HTML tags from text."""
-        # Replace <br> with space
-        text = re.sub(r'<br\s*/?>', ' ', text, flags=re.IGNORECASE)
-        # Remove tags
-        text = re.sub(r'<[^>]+>', '', text)
-        return text.strip()
-
     async def _extract_consumption_data(self, page: Page) -> AntelConsumoData:
         """Extract consumption data from the page."""
         data = AntelConsumoData()
@@ -237,8 +227,6 @@ class AntelScraper:
         try:
             await page.wait_for_load_state("networkidle", timeout=30000)
             await asyncio.sleep(2)
-            
-            _LOGGER.info(f"Extracting data from: {page.url} ({await page.title()})")
 
             filter_text = self._service_id if self._service_id else "Fibra"
             service_card = page.locator(".servicioBox").filter(
@@ -275,32 +263,13 @@ class AntelScraper:
                 data.total_data_gb = self._parse_data_value(total_text)
 
             # Billing period
-            # Use content() to get full HTML because some info might be hidden (mobile-only classes)
-            body_html = await page.content()
-            raw_data["body_html_sample"] = body_html[:1000] if body_html else None
-            
-            if body_html:
-                # Regex modified to capture until end of line or block tag
-                match = re.search(r"Ciclo actual:(.*?)(?:</div>|</p>|<br>|\n|$)", body_html, re.IGNORECASE)
+            body_text = await page.inner_text("body")
+            raw_data["body_text_sample"] = body_text[:1000] if body_text else None
+            if body_text:
+                match = re.search(r"Ciclo actual:\s*([^\n]+)", body_text)
                 if match:
-                    raw_text = match.group(1)
-                    data.billing_period = self._clean_html_text(raw_text)
+                    data.billing_period = match.group(1).strip()
                     raw_data["billing_period"] = data.billing_period
-
-                # Days until renewal ("Quedan X días para renovar")
-                # Handle optional tags like <strong> or <span> between words
-                renewal_match = re.search(r"Quedan?(?:<[^>]+>|\s)*(\d+)(?:<[^>]+>|\s)*d[íi]as?", body_html, re.IGNORECASE)
-                if renewal_match:
-                    data.days_until_renewal = int(renewal_match.group(1))
-                    raw_data["days_until_renewal"] = data.days_until_renewal
-
-                # Contract end date ("Fin de contrato: DD/MM/YYYY")
-                # Allow tags between "Fin de contrato:" and the date
-                contract_match = re.search(r"Fin de contrato[:\s]*(?:<[^>]+>|\s)*(\d{1,2}/\d{1,2}/\d{4})", body_html, re.IGNORECASE)
-                
-                if contract_match:
-                    data.contract_end_date = contract_match.group(1)
-                    raw_data["contract_end_date"] = data.contract_end_date
 
             # Plan name (prefer card)
             if not data.plan_name:
@@ -315,9 +284,8 @@ class AntelScraper:
                         raw_data["plan_name"] = data.plan_name
 
             # Fallback: extract from body
-            if not data.plan_name and body_html:
-                # Use html search, stop at < or newline
-                plan_match = re.search(r"(Fibra[^<\n]+)", body_html)
+            if not data.plan_name and body_text:
+                plan_match = re.search(r"(Fibra[^\n]+)", body_text)
                 if plan_match:
                     data.plan_name = plan_match.group(1).strip()
                     raw_data["plan_name"] = data.plan_name
@@ -426,8 +394,8 @@ class AntelScraper:
 
             data = await self._extract_consumption_data(page)
 
-            if data.raw_data and data.raw_data.get("body_html_sample"):
-                if "inconveniente" in data.raw_data["body_html_sample"].lower():
+            if data.raw_data and data.raw_data.get("body_text_sample"):
+                if "inconveniente" in data.raw_data["body_text_sample"].lower():
                     try:
                         artifacts_dir = Path("/root/src/hacs-antel/artifacts")
                         artifacts_dir.mkdir(parents=True, exist_ok=True)
@@ -446,7 +414,6 @@ class AntelScraper:
                     data = await self._extract_consumption_data(page)
 
                     if data.used_data_gb is None and data.total_data_gb is None:
-                        # Fallback: Go to dashboard and try there (or click)
                         try:
                             await page.goto(home_url, wait_until="domcontentloaded", timeout=120000)
                             await page.wait_for_selector(".servicioBox", timeout=60000)
@@ -458,10 +425,12 @@ class AntelScraper:
                             
                             if await service_card.count():
                                 service_link = service_card.locator("a").first
-                                if await service_link.count():
-                                    await service_link.click(timeout=30000)
-                                    await page.wait_for_load_state("networkidle", timeout=60000)
-                                    await page.wait_for_selector("span.value-data", timeout=60000)
+                            else:
+                                service_link = page.locator(".servicioBox.internet a").first
+                            if await service_link.count():
+                                await service_link.click(timeout=30000)
+                                await page.wait_for_load_state("networkidle", timeout=60000)
+                                await page.wait_for_selector("span.value-data", timeout=60000)
                         except Exception:
                             pass
                         data = await self._extract_consumption_data(page)
