@@ -221,6 +221,14 @@ class AntelScraper:
 
         return None
 
+    def _clean_html_text(self, text: str) -> str:
+        """Remove HTML tags from text."""
+        # Replace <br> with space
+        text = re.sub(r'<br\s*/?>', ' ', text, flags=re.IGNORECASE)
+        # Remove tags
+        text = re.sub(r'<[^>]+>', '', text)
+        return text.strip()
+
     async def _extract_consumption_data(self, page: Page) -> AntelConsumoData:
         """Extract consumption data from the page."""
         data = AntelConsumoData()
@@ -272,23 +280,23 @@ class AntelScraper:
             raw_data["body_html_sample"] = body_html[:1000] if body_html else None
             
             if body_html:
-                # Regex modified to stop at < (HTML tag start) or newline
-                match = re.search(r"Ciclo actual:\s*([^<\n]+)", body_html)
+                # Regex modified to capture until end of line or block tag
+                match = re.search(r"Ciclo actual:(.*?)(?:</div>|</p>|<br>|\n|$)", body_html, re.IGNORECASE)
                 if match:
-                    data.billing_period = match.group(1).strip()
+                    raw_text = match.group(1)
+                    data.billing_period = self._clean_html_text(raw_text)
                     raw_data["billing_period"] = data.billing_period
 
                 # Days until renewal ("Quedan X días para renovar")
-                renewal_match = re.search(r"Quedan?\s*(\d+)\s*d[íi]as?\s*(para\s*)?renovar", body_html, re.IGNORECASE)
+                # Handle optional tags like <strong> or <span> between words
+                renewal_match = re.search(r"Quedan?(?:<[^>]+>|\s)*(\d+)(?:<[^>]+>|\s)*d[íi]as?", body_html, re.IGNORECASE)
                 if renewal_match:
                     data.days_until_renewal = int(renewal_match.group(1))
                     raw_data["days_until_renewal"] = data.days_until_renewal
 
                 # Contract end date ("Fin de contrato: DD/MM/YYYY")
-                contract_match = re.search(r"Fin de contrato[:\s]*<[^>]+>\s*(\d{1,2}/\d{1,2}/\d{4})", body_html, re.IGNORECASE)
-                # Fallback for plain text
-                if not contract_match:
-                     contract_match = re.search(r"Fin de contrato[:\s]*(\d{1,2}/\d{1,2}/\d{4})", body_html, re.IGNORECASE)
+                # Allow tags between "Fin de contrato:" and the date
+                contract_match = re.search(r"Fin de contrato[:\s]*(?:<[^>]+>|\s)*(\d{1,2}/\d{1,2}/\d{4})", body_html, re.IGNORECASE)
                 
                 if contract_match:
                     data.contract_end_date = contract_match.group(1)
