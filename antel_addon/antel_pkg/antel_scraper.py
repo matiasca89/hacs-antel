@@ -229,6 +229,8 @@ class AntelScraper:
         try:
             await page.wait_for_load_state("networkidle", timeout=30000)
             await asyncio.sleep(2)
+            
+            _LOGGER.info(f"Extracting data from: {page.url} ({await page.title()})")
 
             filter_text = self._service_id if self._service_id else "Fibra"
             service_card = page.locator(".servicioBox").filter(
