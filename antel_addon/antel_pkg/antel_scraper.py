@@ -305,8 +305,9 @@ class AntelScraper:
                         raw_data["plan_name"] = data.plan_name
 
             # Fallback: extract from body
-            if not data.plan_name and body_text:
-                plan_match = re.search(r"(Fibra[^\n]+)", body_text)
+            if not data.plan_name and body_html:
+                # Use html search, stop at < or newline
+                plan_match = re.search(r"(Fibra[^<\n]+)", body_html)
                 if plan_match:
                     data.plan_name = plan_match.group(1).strip()
                     raw_data["plan_name"] = data.plan_name
@@ -415,8 +416,8 @@ class AntelScraper:
 
             data = await self._extract_consumption_data(page)
 
-            if data.raw_data and data.raw_data.get("body_text_sample"):
-                if "inconveniente" in data.raw_data["body_text_sample"].lower():
+            if data.raw_data and data.raw_data.get("body_html_sample"):
+                if "inconveniente" in data.raw_data["body_html_sample"].lower():
                     try:
                         artifacts_dir = Path("/root/src/hacs-antel/artifacts")
                         artifacts_dir.mkdir(parents=True, exist_ok=True)
