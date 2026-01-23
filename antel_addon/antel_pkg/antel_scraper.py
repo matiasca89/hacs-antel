@@ -438,35 +438,33 @@ class AntelScraper:
                     except Exception:
                         pass
 
-                    # Strategy: Go to Dashboard -> Click Service -> Extract
-                    # This is more robust than direct URL navigation which often yields error pages
                     try:
-                        _LOGGER.info("Navigating to Dashboard")
-                        await page.goto(home_url, wait_until="domcontentloaded", timeout=60000)
-                        await page.wait_for_selector(".servicioBox", timeout=60000)
-                        
-                        filter_text = self._service_id if self._service_id else "Fibra"
-                        service_card = page.locator(".servicioBox").filter(
-                            has_text=re.compile(filter_text, re.I)
-                        ).first
-                        
-                        if await service_card.count():
-                            # Click the title or link to go to details
-                            service_link = service_card.locator("a").first
-                            if await service_link.count():
-                                _LOGGER.info(f"Clicking service card for '{filter_text}'")
-                                await service_link.click()
-                                await page.wait_for_load_state("networkidle", timeout=60000)
-                                await page.wait_for_selector("span.value-data", timeout=60000)
-                            else:
-                                _LOGGER.warning("Service link not found on card")
-                        else:
-                            _LOGGER.warning(f"Service card matching '{filter_text}' not found")
-
-                    except Exception as e:
-                        _LOGGER.error(f"Error navigating to service details: {e}")
-                    
+                        await page.goto(ANTEL_CONSUMO_INTERNET_URL, wait_until="domcontentloaded", timeout=120000)
+                        await page.wait_for_load_state("networkidle", timeout=60000)
+                    except PlaywrightTimeout:
+                        pass
                     data = await self._extract_consumption_data(page)
+
+                    if data.used_data_gb is None and data.total_data_gb is None:
+                        # Fallback: Go to dashboard and try there (or click)
+                        try:
+                            await page.goto(home_url, wait_until="domcontentloaded", timeout=120000)
+                            await page.wait_for_selector(".servicioBox", timeout=60000)
+                            
+                            filter_text = self._service_id if self._service_id else "Fibra"
+                            service_card = page.locator(".servicioBox").filter(
+                                has_text=re.compile(filter_text, re.I)
+                            ).first
+                            
+                            if await service_card.count():
+                                service_link = service_card.locator("a").first
+                                if await service_link.count():
+                                    await service_link.click(timeout=30000)
+                                    await page.wait_for_load_state("networkidle", timeout=60000)
+                                    await page.wait_for_selector("span.value-data", timeout=60000)
+                        except Exception:
+                            pass
+                        data = await self._extract_consumption_data(page)
 
             return data
 

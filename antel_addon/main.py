@@ -32,61 +32,6 @@ HEADERS = {
 # Daily tracking file
 DAILY_DATA_FILE = Path("/data/daily_tracking.json")
 
-# Spanish month names for parsing
-SPANISH_MONTHS = {
-    "enero": 1, "febrero": 2, "marzo": 3, "abril": 4,
-    "mayo": 5, "junio": 6, "julio": 7, "agosto": 8,
-    "septiembre": 9, "octubre": 10, "noviembre": 11, "diciembre": 12
-}
-
-
-def parse_billing_period(billing_period: str) -> tuple[date | None, date | None]:
-    """Parse billing period like '1 de enero al 31 de enero' to dates."""
-    if not billing_period:
-        logger.warning("parse_billing_period received empty input")
-        return None, None
-    
-    try:
-        # Match pattern: "DD de MES al DD de MES"
-        match = re.search(
-            r'(\d{1,2})\s+de\s+(\w+)\s+al\s+(\d{1,2})\s+de\s+(\w+)',
-            billing_period.lower()
-        )
-        if match:
-            start_day = int(match.group(1))
-            start_month = SPANISH_MONTHS.get(match.group(2))
-            end_day = int(match.group(3))
-            end_month = SPANISH_MONTHS.get(match.group(4))
-            
-            logger.debug(f"Parsed dates -> {start_day}/{start_month} to {end_day}/{end_month}")
-            
-            if start_month and end_month:
-                year = date.today().year
-                # Handle year wrap (e.g., December to January)
-                start_date = date(year, start_month, start_day)
-                if end_month < start_month:
-                    end_date = date(year + 1, end_month, end_day)
-                else:
-                    end_date = date(year, end_month, end_day)
-                return start_date, end_date
-    except Exception as e:
-        logger.warning(f"Failed to parse billing period '{billing_period}': {e}")
-    
-    return None, None
-
-
-def calculate_days_elapsed(billing_period: str) -> int | None:
-    """Calculate days elapsed since billing period start."""
-    start_date, end_date = parse_billing_period(billing_period)
-    if start_date:
-        today = date.today()
-        days_elapsed = (today - start_date).days + 1  # +1 to include start day
-        logger.info(f"Start date: {start_date}, Today: {today}, Elapsed: {days_elapsed}")
-        return max(1, days_elapsed)  # At least 1 day
-    else:
-        logger.warning(f"Could not calculate days elapsed. Start date not found for '{billing_period}'")
-    return None
-
 
 def get_config():
     """Read config from /data/options.json"""
@@ -235,36 +180,6 @@ async def main():
                 
                 if data.contract_end_date:
                     update_sensor("antel_fin_contrato", data.contract_end_date, icon="mdi:calendar-end")
-                
-                # Calculate average usage sensors
-                logger.info(f"Billing period raw: '{data.billing_period}'")
-                logger.info(f"Days until renewal: {data.days_until_renewal}")
-                
-                days_elapsed = calculate_days_elapsed(data.billing_period)
-                logger.info(f"Days elapsed calculated: {days_elapsed}")
-                
-                if days_elapsed and data.used_data_gb is not None:
-                    avg_daily_usage = round(data.used_data_gb / days_elapsed, 2)
-                    update_sensor(
-                        "antel_promedio_uso_diario",
-                        avg_daily_usage,
-                        unit="GB/día",
-                        icon="mdi:chart-line",
-                        attributes={"days_elapsed": days_elapsed}
-                    )
-                    logger.info(f"Average daily usage: {avg_daily_usage} GB/day (over {days_elapsed} days)")
-                
-                if data.days_until_renewal and data.remaining_data_gb is not None:
-                    if data.days_until_renewal > 0:
-                        avg_remaining = round(data.remaining_data_gb / data.days_until_renewal, 2)
-                        update_sensor(
-                            "antel_promedio_restante_diario",
-                            avg_remaining,
-                            unit="GB/día",
-                            icon="mdi:chart-timeline-variant",
-                            attributes={"days_remaining": data.days_until_renewal}
-                        )
-                        logger.info(f"Average remaining per day: {avg_remaining} GB/day (over {data.days_until_renewal} days)")
                 
                 logger.info("Scrape finished successfully. Data updated.")
             else:
