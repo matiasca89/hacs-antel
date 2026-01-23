@@ -43,9 +43,11 @@ SPANISH_MONTHS = {
 def parse_billing_period(billing_period: str) -> tuple[date | None, date | None]:
     """Parse billing period like '1 de enero al 31 de enero' to dates."""
     if not billing_period:
+        logger.warning("parse_billing_period received empty input")
         return None, None
     
     try:
+        logger.info(f"Parsing billing period: '{billing_period}'")
         # Match pattern: "DD de MES al DD de MES"
         match = re.search(
             r'(\d{1,2})\s+de\s+(\w+)\s+al\s+(\d{1,2})\s+de\s+(\w+)',
@@ -56,6 +58,8 @@ def parse_billing_period(billing_period: str) -> tuple[date | None, date | None]
             start_month = SPANISH_MONTHS.get(match.group(2))
             end_day = int(match.group(3))
             end_month = SPANISH_MONTHS.get(match.group(4))
+            
+            logger.info(f"Parsed dates: {start_day}/{start_month} to {end_day}/{end_month}")
             
             if start_month and end_month:
                 year = date.today().year
@@ -78,7 +82,10 @@ def calculate_days_elapsed(billing_period: str) -> int | None:
     if start_date:
         today = date.today()
         days_elapsed = (today - start_date).days + 1  # +1 to include start day
+        logger.info(f"Start date: {start_date}, Today: {today}, Elapsed: {days_elapsed}")
         return max(1, days_elapsed)  # At least 1 day
+    else:
+        logger.warning(f"Could not calculate days elapsed. Start date not found for '{billing_period}'")
     return None
 
 
@@ -184,6 +191,8 @@ async def main():
             data = await scraper.get_consumption_data()
             
             if data:
+                logger.info(f"Raw Data: billing='{data.billing_period}', renewal={data.days_until_renewal}, used={data.used_data_gb}")
+                
                 # Update main sensors
                 if data.used_data_gb is not None:
                     update_sensor("antel_datos_usados", data.used_data_gb, unit="GB", icon="mdi:download")
