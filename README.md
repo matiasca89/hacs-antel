@@ -42,6 +42,7 @@ username: "tu_cedula"
 password: "tu_contraseña"
 scan_interval: 60
 service_id: "ZU3367"
+renewal_day: 25
 ```
 
 | Opción | Descripción | Default |
@@ -50,6 +51,7 @@ service_id: "ZU3367"
 | `password` | Contraseña de Mi Antel | (requerido) |
 | `scan_interval` | Intervalo de actualización en minutos | 60 |
 | `service_id` | ID del servicio a monitorear (ej: "ZU3367"). Dejá vacío para buscar automáticamente "Fibra" | "" |
+| `renewal_day` | Día del mes en que renueva el saldo de datos (1-31) | 1 |
 
 ## Sensores
 
@@ -62,6 +64,9 @@ El Add-on crea los siguientes sensores automáticamente:
 | `sensor.antel_datos_restantes` | Datos disponibles | GB |
 | `sensor.antel_porcentaje_usado` | Porcentaje consumido | % |
 | `sensor.antel_consumo_hoy` | **Consumo del día actual** (se resetea a medianoche) | GB |
+| `sensor.antel_fecha_renovacion` | Fecha de renovación del saldo (calculada) | - |
+| `sensor.antel_dias_hasta_renovacion` | Días restantes hasta la renovación | días |
+| `sensor.antel_dias_pasados_del_mes` | Días pasados desde el inicio del mes | días |
 | `sensor.antel_plan` | Nombre del plan contratado | - |
 | `sensor.antel_periodo_facturacion` | Período de facturación actual | - |
 

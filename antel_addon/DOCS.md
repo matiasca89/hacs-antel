@@ -12,6 +12,7 @@ Este Add-on hace scraping de la página de Mi Antel para obtener el consumo de d
 | `password` | Tu contraseña de Mi Antel |
 | `scan_interval` | Intervalo de actualización en minutos (default: 60) |
 | `service_id` | ID del servicio a monitorear (ej: "ZU3367"). Dejá vacío para auto-detectar |
+| `renewal_day` | Día del mes en que renueva el saldo (1-31) |
 
 ## Sensores Creados
 
@@ -20,6 +21,9 @@ Este Add-on hace scraping de la página de Mi Antel para obtener el consumo de d
 - `sensor.antel_datos_restantes` - GB disponibles
 - `sensor.antel_porcentaje_usado` - Porcentaje consumido
 - `sensor.antel_consumo_hoy` - Consumo del día actual
+- `sensor.antel_fecha_renovacion` - Fecha de renovación del saldo
+- `sensor.antel_dias_hasta_renovacion` - Días restantes hasta renovar
+- `sensor.antel_dias_pasados_del_mes` - Días pasados desde inicio de mes
 - `sensor.antel_plan` - Nombre del plan
 - `sensor.antel_periodo_facturacion` - Período actual
 
