@@ -192,6 +192,11 @@ async def main():
             if data:
                 logger.info(f"Raw Data: billing='{data.billing_period}', renewal={data.days_until_renewal}, used={data.used_data_gb}")
                 
+                # If extraction failed, log HTML sample to debug
+                if data.used_data_gb is None and data.raw_data and data.raw_data.get("body_html_sample"):
+                     logger.warning("Extraction failed! HTML Dump (first 2000 chars):")
+                     logger.warning(data.raw_data["body_html_sample"][:2000])
+                
                 # Update main sensors
                 if data.used_data_gb is not None:
                     update_sensor("antel_datos_usados", data.used_data_gb, unit="GB", icon="mdi:download")
