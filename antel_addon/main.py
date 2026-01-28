@@ -134,7 +134,10 @@ def update_sensor(entity_id, state, attributes=None, unit=None, icon=None, devic
         payload["attributes"]["icon"] = icon
     if device_class:
         payload["attributes"]["device_class"] = device_class
-    
+
+    # Unique ID for entity registry
+    payload["attributes"]["unique_id"] = f"antel_consumo_{entity_id}"
+
     # Friendly name attribute
     friendly_name = entity_id.replace("antel_", "Antel ").replace("_", " ").title()
     payload["attributes"]["friendly_name"] = friendly_name
