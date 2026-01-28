@@ -16,6 +16,8 @@ Este Add-on hace scraping de la página de Mi Antel para obtener el consumo de d
 
 ## Sensores Creados
 
+> Nota: estos sensores **no tienen unique_id** porque se crean vía REST (Add-on). Para entidades editables en la UI, usar Template/MQTT con unique_id.
+
 - `sensor.antel_datos_usados` - GB consumidos
 - `sensor.antel_datos_totales` - GB totales del plan
 - `sensor.antel_datos_restantes` - GB disponibles

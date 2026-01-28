@@ -55,7 +55,7 @@ renewal_day: 25
 
 ## Sensores
 
-> Nota: los sensores incluyen `unique_id` para que puedan editarse desde la UI de Home Assistant.
+> Nota: estos sensores **no tienen unique_id** porque se crean vía REST (Add-on). Para entidades editables en la UI, hay que usar una integración nativa o crear sensores Template/MQTT con unique_id.
 
 El Add-on crea los siguientes sensores automáticamente:
 
