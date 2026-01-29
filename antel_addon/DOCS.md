@@ -13,6 +13,7 @@ Este Add-on hace scraping de la página de Mi Antel para obtener el consumo de d
 | `scan_interval` | Intervalo de actualización en minutos (default: 60) |
 | `service_id` | ID del servicio a monitorear (ej: "ZU3367"). Dejá vacío para auto-detectar |
 | `renewal_day` | Día del mes en que renueva el saldo (1-31) |
+| `timezone` | Zona horaria (default: America/Montevideo) |
 
 ## Sensores Creados
 

@@ -5,8 +5,23 @@ import os
 import sys
 import calendar
 from datetime import datetime, date
+from zoneinfo import ZoneInfo
 import requests
 from pathlib import Path
+
+# Global timezone (set from config)
+USER_TIMEZONE = None
+
+
+def get_local_date():
+    """Get today's date in user's timezone."""
+    if USER_TIMEZONE:
+        try:
+            tz = ZoneInfo(USER_TIMEZONE)
+            return datetime.now(tz).date()
+        except Exception:
+            pass
+    return date.today()
 
 # Adjust path to find the package if needed
 sys.path.append("/app")
@@ -35,7 +50,7 @@ DAILY_DATA_FILE = Path("/data/daily_tracking.json")
 
 def calculate_renewal_dates(renewal_day: int):
     """Calculate next renewal date, days remaining, and days passed since last renewal."""
-    today = date.today()
+    today = get_local_date()
     # Clamp renewal_day to valid day in month
     days_in_month = calendar.monthrange(today.year, today.month)[1]
     renewal_day = max(1, min(int(renewal_day), 31))
@@ -73,7 +88,8 @@ def get_config():
             "password": os.environ.get("ANTEL_PASS"),
             "scan_interval": 60,
             "service_id": "",
-            "renewal_day": None
+            "renewal_day": None,
+            "timezone": "America/Montevideo"
         }
     with open(config_path, "r") as f:
         return json.load(f)
@@ -101,7 +117,7 @@ def save_daily_tracking(data):
 
 def calculate_daily_consumption(current_used_gb: float) -> float:
     """Calculate today's consumption based on baseline."""
-    today = date.today().isoformat()
+    today = get_local_date().isoformat()
     tracking = load_daily_tracking()
     
     # Check if we have a baseline for today
@@ -156,6 +172,11 @@ async def main():
     scan_interval = config.get("scan_interval", 60)  # Minutes
     service_id = config.get("service_id", "")
     renewal_day = config.get("renewal_day", None)
+    
+    # Set global timezone
+    global USER_TIMEZONE
+    USER_TIMEZONE = config.get("timezone", "America/Montevideo")
+    logger.info(f"Using timezone: {USER_TIMEZONE}")
     
     if not username or not password:
         logger.error("Username and password are required in configuration")

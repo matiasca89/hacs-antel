@@ -43,6 +43,7 @@ password: "tu_contraseña"
 scan_interval: 60
 service_id: "ZU3367"
 renewal_day: 25
+timezone: "America/Montevideo"
 ```
 
 | Opción | Descripción | Default |
@@ -52,6 +53,7 @@ renewal_day: 25
 | `scan_interval` | Intervalo de actualización en minutos | 60 |
 | `service_id` | ID del servicio a monitorear (ej: "ZU3367"). Dejá vacío para buscar automáticamente "Fibra" | "" |
 | `renewal_day` | Día del mes en que renueva el saldo de datos (1-31) | 1 |
+| `timezone` | Zona horaria para cálculos de fecha (ej: America/Montevideo) | America/Montevideo |
 
 ## Sensores
 
