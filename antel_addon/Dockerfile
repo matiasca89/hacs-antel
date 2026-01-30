@@ -3,6 +3,8 @@ FROM mcr.microsoft.com/playwright/python:v1.49.0-jammy
 ENV LANG C.UTF-8
 ENV PYTHONDONTWRITEBYTECODE 1
 ENV PYTHONUNBUFFERED 1
+ENV DEBIAN_FRONTEND=noninteractive
+ENV TZ=America/Montevideo
 
 # Install runtime dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
