@@ -7,6 +7,7 @@ ENV PYTHONUNBUFFERED 1
 # Install runtime dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
     jq \
+    tzdata \
     && rm -rf /var/lib/apt/lists/*
 
 # Install python dependencies
