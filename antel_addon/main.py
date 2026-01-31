@@ -218,17 +218,23 @@ async def main():
                     
                     # Calculate and update daily consumption
                     daily_gb = calculate_daily_consumption(data.used_data_gb)
+                    topup_daily = 0.0
+                    if data.topup_balance_gb is not None:
+                        topup_daily = calculate_daily_topup_consumption(data.topup_balance_gb)
+                    total_daily = round(daily_gb + topup_daily, 2)
                     update_sensor(
                         "antel_consumo_hoy",
-                        daily_gb,
+                        total_daily,
                         unit="GB",
                         icon="mdi:calendar-today",
                         attributes={
                             "state_class": "total_increasing",
-                            "last_reset": date.today().isoformat()
+                            "last_reset": date.today().isoformat(),
+                            "consumo_plan": round(daily_gb, 2),
+                            "consumo_recargas": round(topup_daily, 2)
                         }
                     )
-                    logger.info(f"Daily consumption: {daily_gb} GB")
+                    logger.info(f"Daily consumption: {total_daily} GB (plan={daily_gb}, recargas={topup_daily})")
                 
                 if data.total_data_gb is not None:
                     update_sensor("antel_datos_totales", data.total_data_gb, unit="GB", icon="mdi:database")
@@ -242,10 +248,6 @@ async def main():
 
                 if data.topup_balance_gb is not None:
                     update_sensor("antel_saldo_recargas", data.topup_balance_gb, unit="GB", icon="mdi:database-plus")
-
-                    # Daily consumption of top-up balance
-                    topup_daily = calculate_daily_topup_consumption(data.topup_balance_gb)
-                    update_sensor("antel_consumo_recargas_hoy", topup_daily, unit="GB", icon="mdi:calendar-today")
 
                 if data.topup_expiration_date:
                     update_sensor("antel_recargas_vence", data.topup_expiration_date, icon="mdi:calendar-end")
