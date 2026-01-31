@@ -273,7 +273,7 @@ class AntelScraper:
                     raw_data["billing_period"] = data.billing_period
 
                 # Top-up balance (Saldo de recargas)
-                topup_match = re.search(r"Saldo de recargas[:\s]*([^\n]+)", body_text, re.IGNORECASE)
+                topup_match = re.search(r"Saldo de recargas[:\s]*([^\n<]+)", body_text, re.IGNORECASE)
                 if topup_match:
                     topup_text = topup_match.group(1).strip()
                     raw_data["topup_text"] = topup_text
