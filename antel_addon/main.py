@@ -211,7 +211,11 @@ async def main():
                     update_sensor("antel_datos_totales", data.total_data_gb, unit="GB", icon="mdi:database")
                 
                 if data.remaining_data_gb is not None:
-                    update_sensor("antel_datos_restantes", data.remaining_data_gb, unit="GB", icon="mdi:database-check")
+                    # Include top-up balance in remaining data if available
+                    total_remaining = data.remaining_data_gb
+                    if data.topup_balance_gb is not None:
+                        total_remaining += data.topup_balance_gb
+                    update_sensor("antel_datos_restantes", total_remaining, unit="GB", icon="mdi:database-check")
 
                 if data.topup_balance_gb is not None:
                     update_sensor("antel_saldo_recargas", data.topup_balance_gb, unit="GB", icon="mdi:database-plus")
