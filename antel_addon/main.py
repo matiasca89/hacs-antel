@@ -215,6 +215,8 @@ async def main():
 
                 if data.topup_balance_gb is not None:
                     update_sensor("antel_saldo_recargas", data.topup_balance_gb, unit="GB", icon="mdi:database-plus")
+                if data.topup_expiration_date:
+                    update_sensor("antel_recargas_vence", data.topup_expiration_date, icon="mdi:calendar-end")
                 
                 if data.percentage_used is not None:
                     update_sensor("antel_porcentaje_usado", round(data.percentage_used, 1), unit="%", icon="mdi:percent")

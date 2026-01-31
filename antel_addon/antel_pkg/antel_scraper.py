@@ -27,6 +27,7 @@ class AntelConsumoData:
     plan_name: str | None = None
     billing_period: str | None = None
     topup_balance_gb: float | None = None
+    topup_expiration_date: str | None = None
     raw_data: dict[str, Any] | None = None
 
 
@@ -263,6 +264,21 @@ class AntelScraper:
                 raw_data["total_label"] = total_text
                 data.total_data_gb = self._parse_data_value(total_text)
 
+            # Top-up balance and expiration (from service card text)
+            card_text = await service_card.inner_text()
+            raw_data["card_text_sample"] = card_text[:500] if card_text else None
+            if card_text:
+                topup_match = re.search(r"Saldo de recargas[\.:]?\s*([\d.,]+)\s*GB", card_text, re.IGNORECASE)
+                if topup_match:
+                    topup_text = topup_match.group(1).strip() + " GB"
+                    raw_data["topup_text"] = topup_text
+                    data.topup_balance_gb = self._parse_data_value(topup_text)
+
+                exp_match = re.search(r"Vence el\s*(\d{1,2}/\d{1,2}/\d{4})", card_text, re.IGNORECASE)
+                if exp_match:
+                    data.topup_expiration_date = exp_match.group(1)
+                    raw_data["topup_expiration"] = data.topup_expiration_date
+
             # Billing period
             body_text = await page.inner_text("body")
             raw_data["body_text_sample"] = body_text[:1000] if body_text else None
@@ -271,13 +287,6 @@ class AntelScraper:
                 if match:
                     data.billing_period = match.group(1).strip()
                     raw_data["billing_period"] = data.billing_period
-
-                # Top-up balance (Saldo de recargas)
-                topup_match = re.search(r"Saldo de recargas[:\s]*([^\n<]+)", body_text, re.IGNORECASE)
-                if topup_match:
-                    topup_text = topup_match.group(1).strip()
-                    raw_data["topup_text"] = topup_text
-                    data.topup_balance_gb = self._parse_data_value(topup_text)
 
             # Plan name (prefer card)
             if not data.plan_name:
