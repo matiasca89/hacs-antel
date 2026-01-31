@@ -285,7 +285,11 @@ class AntelScraper:
             raw_data["card_text_sample"] = card_text[:500] if card_text else None
             if card_text:
                 _LOGGER.info("Card text sample: %s", card_text[:200])
+                # Try different patterns for recarga balance
                 topup_match = re.search(r"Saldo de recargas[\.:]?\s*([\d.,]+)\s*GB", card_text, re.IGNORECASE)
+                if not topup_match:
+                    topup_match = re.search(r"Recarga datos.*?Me quedan\s*([\d.,]+)\s*GB", card_text, re.IGNORECASE | re.DOTALL)
+
                 if topup_match:
                     topup_text = topup_match.group(1).strip() + " GB"
                     raw_data["topup_text"] = topup_text
@@ -294,9 +298,13 @@ class AntelScraper:
                 else:
                     _LOGGER.info("Top-up balance not found in card text")
 
+                # Expiration date patterns
                 exp_match = re.search(r"Vence el\s*(\d{1,2}/\d{1,2}/\d{4})", card_text, re.IGNORECASE)
+                if not exp_match:
+                    exp_match = re.search(r"Vence el\s*(\d{1,2}\s+de\s+\w+(?:\s+\d{4})?)", card_text, re.IGNORECASE)
+
                 if exp_match:
-                    data.topup_expiration_date = exp_match.group(1)
+                    data.topup_expiration_date = exp_match.group(1).strip()
                     raw_data["topup_expiration"] = data.topup_expiration_date
                     _LOGGER.info("Top-up expiration found: %s", data.topup_expiration_date)
                 else:
