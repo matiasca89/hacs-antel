@@ -126,7 +126,8 @@ def calculate_daily_consumption(current_used_gb: float) -> float:
         logger.info(f"New day detected ({today}). Setting baseline to {current_used_gb} GB")
         tracking = {
             "date": today,
-            "baseline_gb": current_used_gb
+            "baseline_gb": current_used_gb,
+            "baseline_topup_gb": None
         }
         save_daily_tracking(tracking)
         return 0.0
@@ -134,6 +135,27 @@ def calculate_daily_consumption(current_used_gb: float) -> float:
     # Calculate delta
     baseline = tracking.get("baseline_gb", current_used_gb)
     daily_consumption = max(0.0, current_used_gb - baseline)
+    return round(daily_consumption, 2)
+
+
+def calculate_daily_topup_consumption(current_topup_gb: float) -> float:
+    """Calculate today's top-up consumption based on baseline (top-up balance decreases)."""
+    today = get_local_date().isoformat()
+    tracking = load_daily_tracking()
+
+    if tracking.get("date") != today or tracking.get("baseline_topup_gb") is None:
+        logger.info(f"New day detected ({today}). Setting top-up baseline to {current_topup_gb} GB")
+        tracking = {
+            "date": today,
+            "baseline_gb": tracking.get("baseline_gb"),
+            "baseline_topup_gb": current_topup_gb
+        }
+        save_daily_tracking(tracking)
+        return 0.0
+
+    baseline = tracking.get("baseline_topup_gb", current_topup_gb)
+    # top-up balance decreases as you consume
+    daily_consumption = max(0.0, baseline - current_topup_gb)
     return round(daily_consumption, 2)
 
 
@@ -220,6 +242,11 @@ async def main():
 
                 if data.topup_balance_gb is not None:
                     update_sensor("antel_saldo_recargas", data.topup_balance_gb, unit="GB", icon="mdi:database-plus")
+
+                    # Daily consumption of top-up balance
+                    topup_daily = calculate_daily_topup_consumption(data.topup_balance_gb)
+                    update_sensor("antel_consumo_recargas_hoy", topup_daily, unit="GB", icon="mdi:calendar-today")
+
                 if data.topup_expiration_date:
                     update_sensor("antel_recargas_vence", data.topup_expiration_date, icon="mdi:calendar-end")
                 
