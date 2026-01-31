@@ -231,9 +231,13 @@ class AntelScraper:
             await asyncio.sleep(2)
 
             filter_text = self._service_id if self._service_id else "Fibra"
-            service_card = page.locator(".servicioBox").filter(
+            service_cards = page.locator(".servicioBox")
+            service_card = service_cards.filter(
                 has_text=re.compile(filter_text, re.I)
             ).first
+            if await service_card.count() == 0:
+                _LOGGER.warning("No service card matched '%s', using first available", filter_text)
+                service_card = service_cards.first
 
             # Remaining data ("Me quedan")
             remaining_value = service_card.locator("span.value-data").first
@@ -265,7 +269,15 @@ class AntelScraper:
                 data.total_data_gb = self._parse_data_value(total_text)
 
             # Top-up balance and expiration (from service card text)
-            card_text = await service_card.inner_text()
+            card_text = ""
+            try:
+                if await service_card.count():
+                    card_text = await service_card.inner_text(timeout=5000)
+                else:
+                    _LOGGER.warning("Service card not found for top-up extraction")
+            except Exception as err:
+                _LOGGER.warning("Could not read service card text: %s", err)
+
             raw_data["card_text_sample"] = card_text[:500] if card_text else None
             if card_text:
                 topup_match = re.search(r"Saldo de recargas[\.:]?\s*([\d.,]+)\s*GB", card_text, re.IGNORECASE)
