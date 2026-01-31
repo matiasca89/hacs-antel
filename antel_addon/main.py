@@ -177,6 +177,7 @@ async def main():
     global USER_TIMEZONE
     USER_TIMEZONE = config.get("timezone", "America/Montevideo")
     logger.info(f"Using timezone: {USER_TIMEZONE}")
+    logger.info(f"Config: service_id={service_id}, renewal_day={renewal_day}")
     
     if not username or not password:
         logger.error("Username and password are required in configuration")

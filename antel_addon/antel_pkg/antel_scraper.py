@@ -232,12 +232,16 @@ class AntelScraper:
 
             filter_text = self._service_id if self._service_id else "Fibra"
             service_cards = page.locator(".servicioBox")
+            cards_count = await service_cards.count()
+            _LOGGER.info("Service cards found: %s (filter: %s)", cards_count, filter_text)
             service_card = service_cards.filter(
                 has_text=re.compile(filter_text, re.I)
             ).first
             if await service_card.count() == 0:
                 _LOGGER.warning("No service card matched '%s', using first available", filter_text)
                 service_card = service_cards.first
+            else:
+                _LOGGER.info("Matched service card for '%s'", filter_text)
 
             # Remaining data ("Me quedan")
             remaining_value = service_card.locator("span.value-data").first
@@ -280,16 +284,25 @@ class AntelScraper:
 
             raw_data["card_text_sample"] = card_text[:500] if card_text else None
             if card_text:
+                _LOGGER.info("Card text sample: %s", card_text[:200])
                 topup_match = re.search(r"Saldo de recargas[\.:]?\s*([\d.,]+)\s*GB", card_text, re.IGNORECASE)
                 if topup_match:
                     topup_text = topup_match.group(1).strip() + " GB"
                     raw_data["topup_text"] = topup_text
                     data.topup_balance_gb = self._parse_data_value(topup_text)
+                    _LOGGER.info("Top-up balance found: %s", topup_text)
+                else:
+                    _LOGGER.info("Top-up balance not found in card text")
 
                 exp_match = re.search(r"Vence el\s*(\d{1,2}/\d{1,2}/\d{4})", card_text, re.IGNORECASE)
                 if exp_match:
                     data.topup_expiration_date = exp_match.group(1)
                     raw_data["topup_expiration"] = data.topup_expiration_date
+                    _LOGGER.info("Top-up expiration found: %s", data.topup_expiration_date)
+                else:
+                    _LOGGER.info("Top-up expiration not found in card text")
+            else:
+                _LOGGER.warning("Service card text empty or unavailable")
 
             # Billing period
             body_text = await page.inner_text("body")
