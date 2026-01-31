@@ -212,6 +212,9 @@ async def main():
                 
                 if data.remaining_data_gb is not None:
                     update_sensor("antel_datos_restantes", data.remaining_data_gb, unit="GB", icon="mdi:database-check")
+
+                if data.topup_balance_gb is not None:
+                    update_sensor("antel_saldo_recargas", data.topup_balance_gb, unit="GB", icon="mdi:database-plus")
                 
                 if data.percentage_used is not None:
                     update_sensor("antel_porcentaje_usado", round(data.percentage_used, 1), unit="%", icon="mdi:percent")

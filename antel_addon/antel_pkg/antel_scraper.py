@@ -26,6 +26,7 @@ class AntelConsumoData:
     percentage_used: float | None = None
     plan_name: str | None = None
     billing_period: str | None = None
+    topup_balance_gb: float | None = None
     raw_data: dict[str, Any] | None = None
 
 
@@ -270,6 +271,13 @@ class AntelScraper:
                 if match:
                     data.billing_period = match.group(1).strip()
                     raw_data["billing_period"] = data.billing_period
+
+                # Top-up balance (Saldo de recargas)
+                topup_match = re.search(r"Saldo de recargas[:\s]*([^\n]+)", body_text, re.IGNORECASE)
+                if topup_match:
+                    topup_text = topup_match.group(1).strip()
+                    raw_data["topup_text"] = topup_text
+                    data.topup_balance_gb = self._parse_data_value(topup_text)
 
             # Plan name (prefer card)
             if not data.plan_name:
