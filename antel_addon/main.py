@@ -206,16 +206,20 @@ async def main():
         return
 
     while True:
-        logger.info("Starting scrape cycle...")
-        scraper = AntelScraper(username, password, service_id if service_id else None)
-        try:
-            data = await scraper.get_consumption_data()
-            
-            if data:
+        success = False
+        for attempt in range(1, 4):
+            logger.info(f"Starting scrape attempt {attempt}/3...")
+            scraper = AntelScraper(username, password, service_id if service_id else None)
+            try:
+                data = await scraper.get_consumption_data()
+
+                if not data or (data.used_data_gb is None and data.total_data_gb is None and data.remaining_data_gb is None):
+                    raise ValueError("No valid data returned from scrape")
+
                 # Update main sensors
                 if data.used_data_gb is not None:
                     update_sensor("antel_datos_usados", data.used_data_gb, unit="GB", icon="mdi:download")
-                    
+
                     # Calculate and update daily consumption
                     daily_gb = calculate_daily_consumption(data.used_data_gb)
                     topup_daily = 0.0
@@ -235,10 +239,10 @@ async def main():
                         }
                     )
                     logger.info(f"Daily consumption: {total_daily} GB (plan={daily_gb}, recargas={topup_daily})")
-                
+
                 if data.total_data_gb is not None:
                     update_sensor("antel_datos_totales", data.total_data_gb, unit="GB", icon="mdi:database")
-                
+
                 if data.remaining_data_gb is not None:
                     # Include top-up balance in remaining data if available
                     total_remaining = data.remaining_data_gb
@@ -251,13 +255,13 @@ async def main():
 
                 if data.topup_expiration_date:
                     update_sensor("antel_recargas_vence", data.topup_expiration_date, icon="mdi:calendar-end")
-                
+
                 if data.percentage_used is not None:
                     update_sensor("antel_porcentaje_usado", round(data.percentage_used, 1), unit="%", icon="mdi:percent")
-                
+
                 if data.plan_name:
                     update_sensor("antel_plan", data.plan_name, icon="mdi:file-document")
-                
+
                 if data.billing_period:
                     update_sensor("antel_periodo_facturacion", data.billing_period, icon="mdi:calendar")
 
@@ -278,16 +282,21 @@ async def main():
                             update_sensor("antel_promedio_restante_diario", avg_remaining, unit="GB/día", icon="mdi:chart-timeline-variant")
                     except Exception as e:
                         logger.warning(f"Failed to calculate renewal_day sensors: {e}")
-                
-                logger.info("Scrape finished successfully. Data updated.")
-            else:
-                logger.warning("Scrape finished but no data returned.")
 
-        except Exception as e:
-            logger.error(f"Error during scrape: {e}")
-        finally:
-            await scraper.close()
-        
+                logger.info("Scrape finished successfully. Data updated.")
+                success = True
+                break
+
+            except Exception as e:
+                logger.error(f"Error during scrape attempt {attempt}: {e}")
+                if attempt < 3:
+                    await asyncio.sleep(30)
+            finally:
+                await scraper.close()
+
+        if not success:
+            logger.error("All 3 scrape attempts failed. Waiting until next cycle.")
+
         logger.info(f"Sleeping for {scan_interval} minutes...")
         await asyncio.sleep(scan_interval * 60)
 
