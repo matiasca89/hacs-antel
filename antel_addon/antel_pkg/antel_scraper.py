@@ -52,12 +52,13 @@ class AntelScraper:
         self._password = password
         self._service_id = service_id
         self._browser: Browser | None = None
+        self._playwright = None
 
     async def _ensure_browser(self) -> Browser:
         """Ensure browser is available."""
         if self._browser is None or not self._browser.is_connected():
-            playwright = await async_playwright().start()
-            self._browser = await playwright.chromium.launch(
+            self._playwright = await async_playwright().start()
+            self._browser = await self._playwright.chromium.launch(
                 headless=True,
                 args=[
                     "--no-sandbox",
@@ -73,6 +74,9 @@ class AntelScraper:
         if self._browser:
             await self._browser.close()
             self._browser = None
+        if self._playwright:
+            await self._playwright.stop()
+            self._playwright = None
 
     async def _login(self, page: Page) -> bool:
         """Perform login on Antel page."""
@@ -114,7 +118,7 @@ class AntelScraper:
 
             try:
                 await page.get_by_role("button", name="Continuar").click(timeout=30000)
-                await page.wait_for_load_state("domcontentloaded", timeout=40000)
+                await page.wait_for_load_state("domcontentloaded", timeout=20000)
             except Exception as err:
                 raise AntelAuthError("Could not submit username") from err
 
@@ -170,7 +174,7 @@ class AntelScraper:
                 raise AntelAuthError("Could not submit password") from err
 
             try:
-                await page.wait_for_load_state("networkidle", timeout=60000)
+                await page.wait_for_load_state("networkidle", timeout=10000)
             except PlaywrightTimeout:
                 pass
 
@@ -227,8 +231,11 @@ class AntelScraper:
         raw_data: dict[str, Any] = {}
 
         try:
-            await page.wait_for_load_state("networkidle", timeout=30000)
-            await asyncio.sleep(2)
+            # Wait for data elements to be available instead of generic networkidle
+            try:
+                await page.wait_for_selector("span.value-data, .progress-bar__label", timeout=20000)
+            except PlaywrightTimeout:
+                await page.wait_for_load_state("networkidle", timeout=10000)
 
             filter_text = self._service_id if self._service_id else "Fibra"
             service_cards = page.locator(".servicioBox")
@@ -364,6 +371,14 @@ class AntelScraper:
             user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
         )
 
+        # Performance optimization: Block images, media and fonts to save bandwidth and speed up loading
+        async def block_resources(route):
+            if route.request.resource_type in ["image", "media", "font"]:
+                await route.abort()
+            else:
+                await route.continue_()
+        await context.route("**/*", block_resources)
+
         try:
             page = await context.new_page()
 
@@ -380,10 +395,14 @@ class AntelScraper:
 
             home_url = f"{ANTEL_BASE_URL}/miAntel/"
             try:
-                await page.goto(home_url, wait_until="domcontentloaded", timeout=120000)
-                await page.wait_for_load_state("networkidle", timeout=60000)
-            except PlaywrightTimeout:
-                pass
+                await page.goto(home_url, wait_until="domcontentloaded", timeout=60000)
+                # Wait for specific elements that indicate the page is ready
+                await page.wait_for_selector(".servicioBox, .tMenu_toggle, .menu-usuario", timeout=20000)
+            except (PlaywrightTimeout, Exception):
+                try:
+                    await page.wait_for_load_state("networkidle", timeout=10000)
+                except:
+                    pass
 
             # Open user menu and navigate to Autogestión y trámites en línea
             try:
@@ -399,7 +418,7 @@ class AntelScraper:
                     "link",
                     name=re.compile("autogestión y trámites en línea", re.I),
                 ).click(timeout=30000)
-                await page.wait_for_load_state("networkidle", timeout=60000)
+                await page.wait_for_load_state("domcontentloaded", timeout=30000)
             except Exception:
                 pass
 
@@ -424,14 +443,14 @@ class AntelScraper:
                 raise
 
             try:
-                await page.wait_for_load_state("networkidle", timeout=60000)
+                await page.wait_for_load_state("domcontentloaded", timeout=30000)
             except PlaywrightTimeout:
                 pass
 
             try:
                 await page.wait_for_selector(
                     "span.value-data, .progress-bar__label",
-                    timeout=60000,
+                    timeout=30000,
                 )
             except Exception:
                 try:
@@ -457,8 +476,8 @@ class AntelScraper:
                         pass
 
                     try:
-                        await page.goto(ANTEL_CONSUMO_INTERNET_URL, wait_until="domcontentloaded", timeout=120000)
-                        await page.wait_for_load_state("networkidle", timeout=60000)
+                        await page.goto(ANTEL_CONSUMO_INTERNET_URL, wait_until="domcontentloaded", timeout=60000)
+                        await page.wait_for_load_state("networkidle", timeout=10000)
                     except PlaywrightTimeout:
                         pass
                     data = await self._extract_consumption_data(page)
@@ -479,8 +498,8 @@ class AntelScraper:
                                 service_link = page.locator(".servicioBox.internet a").first
                             if await service_link.count():
                                 await service_link.click(timeout=30000)
-                                await page.wait_for_load_state("networkidle", timeout=60000)
-                                await page.wait_for_selector("span.value-data", timeout=60000)
+                                await page.wait_for_load_state("domcontentloaded", timeout=30000)
+                                await page.wait_for_selector("span.value-data", timeout=30000)
                         except Exception:
                             pass
                         data = await self._extract_consumption_data(page)
@@ -497,6 +516,14 @@ class AntelScraper:
             viewport={"width": 1280, "height": 720},
             user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
         )
+
+        # Performance optimization: Block images, media and fonts
+        async def block_resources(route):
+            if route.request.resource_type in ["image", "media", "font"]:
+                await route.abort()
+            else:
+                await route.continue_()
+        await context.route("**/*", block_resources)
 
         try:
             page = await context.new_page()
