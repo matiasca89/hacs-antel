@@ -69,6 +69,24 @@ class AntelScraper:
             )
         return self._browser
 
+    async def _setup_performance_routing(self, page: Page) -> None:
+        """Setup page routing to block unnecessary resources for performance."""
+        # Block images, fonts, and media to save bandwidth and speed up loading
+        # We only need the text content and DOM structure
+        resource_types_to_block = {
+            "image",
+            "font",
+            "media",
+        }
+
+        async def block_resources(route):
+            if route.request.resource_type in resource_types_to_block:
+                await route.abort()
+            else:
+                await route.continue_()
+
+        await page.route("**/*", block_resources)
+
     async def close(self) -> None:
         """Close browser and playwright runtime."""
         if self._browser:
@@ -237,8 +255,13 @@ class AntelScraper:
         raw_data: dict[str, Any] = {}
 
         try:
-            await page.wait_for_load_state("networkidle", timeout=30000)
-            await asyncio.sleep(2)
+            # PERFORMANCE: Instead of networkidle and fixed sleep, wait for the actual data element
+            # This allows extraction to start as soon as the DOM is ready with the relevant info
+            try:
+                await page.wait_for_selector("span.value-data, .progress-bar__label", timeout=30000)
+            except PlaywrightTimeout:
+                # Fallback to networkidle if elements don't appear
+                await page.wait_for_load_state("networkidle", timeout=10000)
 
             filter_text = self._service_id if self._service_id else "Fibra"
             service_cards = page.locator(".servicioBox")
@@ -376,6 +399,7 @@ class AntelScraper:
 
         try:
             page = await context.new_page()
+            await self._setup_performance_routing(page)
 
             # Login with retries
             for attempt in range(3):
@@ -510,6 +534,7 @@ class AntelScraper:
 
         try:
             page = await context.new_page()
+            await self._setup_performance_routing(page)
             for attempt in range(3):
                 try:
                     await self._login(page)

@@ -72,6 +72,8 @@ class MockLocator:
 class MockPage:
     """Mock Playwright Page."""
     async def wait_for_load_state(self, *args, **kwargs): pass
+    async def wait_for_selector(self, *args, **kwargs): pass
+    async def route(self, *args, **kwargs): pass
     
     async def content(self):
         return HTML_SAMPLE
