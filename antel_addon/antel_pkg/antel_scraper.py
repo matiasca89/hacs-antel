@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from playwright.async_api import async_playwright, Browser, Page, TimeoutError as PlaywrightTimeout
+from playwright.async_api import async_playwright, Browser, Page, Playwright, TimeoutError as PlaywrightTimeout
 
 from .const import ANTEL_BASE_URL, ANTEL_CONSUMO_INTERNET_URL, ANTEL_LOGIN_URL
 
@@ -52,12 +52,13 @@ class AntelScraper:
         self._password = password
         self._service_id = service_id
         self._browser: Browser | None = None
+        self._playwright: Playwright | None = None
 
     async def _ensure_browser(self) -> Browser:
         """Ensure browser is available."""
         if self._browser is None or not self._browser.is_connected():
-            playwright = await async_playwright().start()
-            self._browser = await playwright.chromium.launch(
+            self._playwright = await async_playwright().start()
+            self._browser = await self._playwright.chromium.launch(
                 headless=True,
                 args=[
                     "--no-sandbox",
@@ -69,10 +70,19 @@ class AntelScraper:
         return self._browser
 
     async def close(self) -> None:
-        """Close the browser."""
+        """Close browser and playwright runtime."""
         if self._browser:
-            await self._browser.close()
+            try:
+                await self._browser.close()
+            except Exception:
+                pass
             self._browser = None
+        if self._playwright:
+            try:
+                await self._playwright.stop()
+            except Exception:
+                pass
+            self._playwright = None
 
     async def _login(self, page: Page) -> bool:
         """Perform login on Antel page."""

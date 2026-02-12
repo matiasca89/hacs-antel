@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from playwright.async_api import async_playwright, Browser, Page, TimeoutError as PlaywrightTimeout
+from playwright.async_api import async_playwright, Browser, Page, Playwright, TimeoutError as PlaywrightTimeout
 
 from .const import ANTEL_BASE_URL, ANTEL_CONSUMO_INTERNET_URL, ANTEL_LOGIN_URL
 
@@ -26,6 +26,8 @@ class AntelConsumoData:
     percentage_used: float | None = None
     plan_name: str | None = None
     billing_period: str | None = None
+    topup_balance_gb: float | None = None
+    topup_expiration_date: str | None = None
     raw_data: dict[str, Any] | None = None
 
 
@@ -50,12 +52,13 @@ class AntelScraper:
         self._password = password
         self._service_id = service_id
         self._browser: Browser | None = None
+        self._playwright: Playwright | None = None
 
     async def _ensure_browser(self) -> Browser:
         """Ensure browser is available."""
         if self._browser is None or not self._browser.is_connected():
-            playwright = await async_playwright().start()
-            self._browser = await playwright.chromium.launch(
+            self._playwright = await async_playwright().start()
+            self._browser = await self._playwright.chromium.launch(
                 headless=True,
                 args=[
                     "--no-sandbox",
@@ -67,10 +70,19 @@ class AntelScraper:
         return self._browser
 
     async def close(self) -> None:
-        """Close the browser."""
+        """Close browser and playwright runtime."""
         if self._browser:
-            await self._browser.close()
+            try:
+                await self._browser.close()
+            except Exception:
+                pass
             self._browser = None
+        if self._playwright:
+            try:
+                await self._playwright.stop()
+            except Exception:
+                pass
+            self._playwright = None
 
     async def _login(self, page: Page) -> bool:
         """Perform login on Antel page."""
@@ -229,9 +241,17 @@ class AntelScraper:
             await asyncio.sleep(2)
 
             filter_text = self._service_id if self._service_id else "Fibra"
-            service_card = page.locator(".servicioBox").filter(
+            service_cards = page.locator(".servicioBox")
+            cards_count = await service_cards.count()
+            _LOGGER.info("Service cards found: %s (filter: %s)", cards_count, filter_text)
+            service_card = service_cards.filter(
                 has_text=re.compile(filter_text, re.I)
             ).first
+            if await service_card.count() == 0:
+                _LOGGER.warning("No service card matched '%s', using first available", filter_text)
+                service_card = service_cards.first
+            else:
+                _LOGGER.info("Matched service card for '%s'", filter_text)
 
             # Remaining data ("Me quedan")
             remaining_value = service_card.locator("span.value-data").first
@@ -261,6 +281,46 @@ class AntelScraper:
                 total_text = await total_label.text_content() or ""
                 raw_data["total_label"] = total_text
                 data.total_data_gb = self._parse_data_value(total_text)
+
+            # Top-up balance and expiration (from service card text)
+            card_text = ""
+            try:
+                if await service_card.count():
+                    card_text = await service_card.inner_text(timeout=5000)
+                else:
+                    _LOGGER.warning("Service card not found for top-up extraction")
+            except Exception as err:
+                _LOGGER.warning("Could not read service card text: %s", err)
+
+            raw_data["card_text_sample"] = card_text[:500] if card_text else None
+            if card_text:
+                _LOGGER.info("Card text sample: %s", card_text[:200])
+                # Try different patterns for recarga balance
+                topup_match = re.search(r"Saldo de recargas[\.:]?\s*([\d.,]+)\s*GB", card_text, re.IGNORECASE)
+                if not topup_match:
+                    topup_match = re.search(r"Recarga datos.*?Me quedan\s*([\d.,]+)\s*GB", card_text, re.IGNORECASE | re.DOTALL)
+
+                if topup_match:
+                    topup_text = topup_match.group(1).strip() + " GB"
+                    raw_data["topup_text"] = topup_text
+                    data.topup_balance_gb = self._parse_data_value(topup_text)
+                    _LOGGER.info("Top-up balance found: %s", topup_text)
+                else:
+                    _LOGGER.info("Top-up balance not found in card text")
+
+                # Expiration date patterns
+                exp_match = re.search(r"Vence el\s*(\d{1,2}/\d{1,2}/\d{4})", card_text, re.IGNORECASE)
+                if not exp_match:
+                    exp_match = re.search(r"Vence el\s*(\d{1,2}\s+de\s+\w+(?:\s+\d{4})?)", card_text, re.IGNORECASE)
+
+                if exp_match:
+                    data.topup_expiration_date = exp_match.group(1).strip()
+                    raw_data["topup_expiration"] = data.topup_expiration_date
+                    _LOGGER.info("Top-up expiration found: %s", data.topup_expiration_date)
+                else:
+                    _LOGGER.info("Top-up expiration not found in card text")
+            else:
+                _LOGGER.warning("Service card text empty or unavailable")
 
             # Billing period
             body_text = await page.inner_text("body")
