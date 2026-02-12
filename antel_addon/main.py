@@ -211,7 +211,7 @@ async def main():
             logger.info(f"Starting scrape attempt {attempt}/3...")
             scraper = AntelScraper(username, password, service_id if service_id else None)
             try:
-                data = await scraper.get_consumption_data()
+                data = await asyncio.wait_for(scraper.get_consumption_data(), timeout=300)
 
                 if not data or (data.used_data_gb is None and data.total_data_gb is None and data.remaining_data_gb is None):
                     raise ValueError("No valid data returned from scrape")
@@ -287,12 +287,19 @@ async def main():
                 success = True
                 break
 
+            except asyncio.TimeoutError:
+                logger.error(f"Error during scrape attempt {attempt}: timeout after 300s")
+                if attempt < 3:
+                    await asyncio.sleep(30)
             except Exception as e:
                 logger.error(f"Error during scrape attempt {attempt}: {e}")
                 if attempt < 3:
                     await asyncio.sleep(30)
             finally:
-                await scraper.close()
+                try:
+                    await scraper.close()
+                except Exception as close_err:
+                    logger.warning(f"Error closing scraper after attempt {attempt}: {close_err}")
 
         if not success:
             logger.error("All 3 scrape attempts failed. Waiting until next cycle.")
