@@ -1,0 +1,3 @@
+## 2025-05-15 - [Initial Exploration]
+**Learning:** The scraper logic is duplicated in two places: `antel_addon/antel_pkg/antel_scraper.py` and `custom_components/antel_consumo/antel_scraper.py`. It uses many redundant `wait_for_load_state("networkidle")` calls which significantly slow down the scraping process as it waits for all background requests to finish, even if the required data is already present.
+**Action:** Implement resource blocking (images, fonts, media) and replace/remove redundant `networkidle` waits with specific `wait_for_selector` or `domcontentloaded` states. Ensure changes are applied to both files.
