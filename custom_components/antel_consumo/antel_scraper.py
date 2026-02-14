@@ -237,8 +237,9 @@ class AntelScraper:
         raw_data: dict[str, Any] = {}
 
         try:
-            await page.wait_for_load_state("networkidle", timeout=30000)
-            await asyncio.sleep(2)
+            # Performance optimization: Wait for the specific element instead of networkidle + sleep
+            # This can save 2-5 seconds per scrape
+            await page.wait_for_selector(".servicioBox", timeout=30000)
 
             filter_text = self._service_id if self._service_id else "Fibra"
             service_cards = page.locator(".servicioBox")
@@ -377,6 +378,12 @@ class AntelScraper:
         try:
             page = await context.new_page()
 
+            # Performance optimization: block heavy resources to save bandwidth and speed up loading
+            await page.route(
+                "**/*",
+                lambda route: route.abort() if route.request.resource_type in ["image", "media", "font"] else route.continue_()
+            )
+
             # Login with retries
             for attempt in range(3):
                 try:
@@ -510,6 +517,13 @@ class AntelScraper:
 
         try:
             page = await context.new_page()
+
+            # Performance optimization: block heavy resources
+            await page.route(
+                "**/*",
+                lambda route: route.abort() if route.request.resource_type in ["image", "media", "font"] else route.continue_()
+            )
+
             for attempt in range(3):
                 try:
                     await self._login(page)
