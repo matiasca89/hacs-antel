@@ -84,6 +84,13 @@ class AntelScraper:
                 pass
             self._playwright = None
 
+    async def _block_resources(self, route):
+        """Block unnecessary resources to save bandwidth and speed up loading."""
+        if route.request.resource_type in ["image", "media", "font"]:
+            await route.abort()
+        else:
+            await route.continue_()
+
     async def _login(self, page: Page) -> bool:
         """Perform login on Antel page."""
         try:
@@ -237,8 +244,8 @@ class AntelScraper:
         raw_data: dict[str, Any] = {}
 
         try:
-            await page.wait_for_load_state("networkidle", timeout=30000)
-            await asyncio.sleep(2)
+            # Faster than networkidle + sleep
+            await page.wait_for_selector(".servicioBox", timeout=30000)
 
             filter_text = self._service_id if self._service_id else "Fibra"
             service_cards = page.locator(".servicioBox")
@@ -376,6 +383,8 @@ class AntelScraper:
 
         try:
             page = await context.new_page()
+            # Block unnecessary resources to speed up page loads
+            await page.route("**/*", self._block_resources)
 
             # Login with retries
             for attempt in range(3):
@@ -388,32 +397,8 @@ class AntelScraper:
                         continue
                     raise
 
-            home_url = f"{ANTEL_BASE_URL}/miAntel/"
-            try:
-                await page.goto(home_url, wait_until="domcontentloaded", timeout=120000)
-                await page.wait_for_load_state("networkidle", timeout=60000)
-            except PlaywrightTimeout:
-                pass
-
-            # Open user menu and navigate to Autogestión y trámites en línea
-            try:
-                user_menu = page.get_by_role("button", name=re.compile("mi cuenta|perfil|usuario|bienvenido", re.I))
-                if await user_menu.count():
-                    await user_menu.first.click(timeout=30000)
-                else:
-                    menu_toggle = page.locator(".tMenu_toggle, .menu-usuario, .user-menu, .dropdown-toggle").first
-                    if await menu_toggle.count():
-                        await menu_toggle.click(timeout=30000)
-
-                await page.get_by_role(
-                    "link",
-                    name=re.compile("autogestión y trámites en línea", re.I),
-                ).click(timeout=30000)
-                await page.wait_for_load_state("networkidle", timeout=60000)
-            except Exception:
-                pass
-
-            # Navigate to internet consumption page
+            # Navigate directly to internet consumption page (faster than clicking through menus)
+            _LOGGER.debug("Navigating directly to internet consumption page")
             try:
                 await page.goto(ANTEL_CONSUMO_INTERNET_URL, wait_until="domcontentloaded", timeout=120000)
             except PlaywrightTimeout:
@@ -510,6 +495,9 @@ class AntelScraper:
 
         try:
             page = await context.new_page()
+            # Block unnecessary resources to speed up page loads
+            await page.route("**/*", self._block_resources)
+
             for attempt in range(3):
                 try:
                     await self._login(page)
