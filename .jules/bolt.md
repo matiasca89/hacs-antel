@@ -1,0 +1,3 @@
+## 2024-05-23 - [Direct Navigation & Resource Blocking in Playwright]
+**Learning:** Navigating directly to the deep-linked resource URL (e.g., `/consumo/internet`) after login, instead of following the UI's menu path, provides a significant speedup by bypassing heavy intermediate pages. Combined with resource blocking (images, media, fonts) via `context.route`, the scraper performance is measurably improved and bandwidth usage is reduced.
+**Action:** Always check if the target data is accessible via a direct URL after authentication. Set up resource blocking early in the context creation to maximize speed.
