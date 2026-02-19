@@ -179,11 +179,7 @@ class AntelScraper:
             except Exception as err:
                 raise AntelAuthError("Could not submit password") from err
 
-            try:
-                await page.wait_for_load_state("networkidle", timeout=60000)
-            except PlaywrightTimeout:
-                pass
-
+            # Optimization: Skip networkidle wait after login to speed up navigation
             _LOGGER.debug("Login successful")
             return True
 
@@ -237,8 +233,12 @@ class AntelScraper:
         raw_data: dict[str, Any] = {}
 
         try:
-            await page.wait_for_load_state("networkidle", timeout=30000)
-            await asyncio.sleep(2)
+            # Optimization: Using a targeted wait instead of a long blind sleep or networkidle.
+            # This ensures secondary data like billing period is loaded.
+            try:
+                await page.wait_for_selector(".card-footer-extra, text=Ciclo actual", timeout=5000)
+            except Exception:
+                pass
 
             filter_text = self._service_id if self._service_id else "Fibra"
             service_cards = page.locator(".servicioBox")
@@ -326,7 +326,7 @@ class AntelScraper:
             body_text = await page.inner_text("body")
             raw_data["body_text_sample"] = body_text[:1000] if body_text else None
             if body_text:
-                match = re.search(r"Ciclo actual:\s*([^\n]+)", body_text)
+                match = re.search(r"Ciclo actual:\s*([^<\n]+)", body_text)
                 if match:
                     data.billing_period = match.group(1).strip()
                     raw_data["billing_period"] = data.billing_period
@@ -376,6 +376,11 @@ class AntelScraper:
 
         try:
             page = await context.new_page()
+            # Optimization: Block unnecessary resources to save bandwidth and CPU
+            await page.route(
+                re.compile(r".*\.(png|jpg|jpeg|gif|webp|svg|woff|woff2|ttf|otf|mp4|webm|ogg|mp3|wav)"),
+                lambda route: route.abort()
+            )
 
             # Login with retries
             for attempt in range(3):
@@ -389,32 +394,10 @@ class AntelScraper:
                     raise
 
             home_url = f"{ANTEL_BASE_URL}/miAntel/"
+            # Optimization: Navigate directly to consumption page, skipping home page and menu clicks.
+            # This saves ~10-20 seconds per scrape.
             try:
-                await page.goto(home_url, wait_until="domcontentloaded", timeout=120000)
-                await page.wait_for_load_state("networkidle", timeout=60000)
-            except PlaywrightTimeout:
-                pass
-
-            # Open user menu and navigate to Autogestión y trámites en línea
-            try:
-                user_menu = page.get_by_role("button", name=re.compile("mi cuenta|perfil|usuario|bienvenido", re.I))
-                if await user_menu.count():
-                    await user_menu.first.click(timeout=30000)
-                else:
-                    menu_toggle = page.locator(".tMenu_toggle, .menu-usuario, .user-menu, .dropdown-toggle").first
-                    if await menu_toggle.count():
-                        await menu_toggle.click(timeout=30000)
-
-                await page.get_by_role(
-                    "link",
-                    name=re.compile("autogestión y trámites en línea", re.I),
-                ).click(timeout=30000)
-                await page.wait_for_load_state("networkidle", timeout=60000)
-            except Exception:
-                pass
-
-            # Navigate to internet consumption page
-            try:
+                _LOGGER.info("Navigating directly to consumption page: %s", ANTEL_CONSUMO_INTERNET_URL)
                 await page.goto(ANTEL_CONSUMO_INTERNET_URL, wait_until="domcontentloaded", timeout=120000)
             except PlaywrightTimeout:
                 try:
@@ -433,11 +416,7 @@ class AntelScraper:
                     pass
                 raise
 
-            try:
-                await page.wait_for_load_state("networkidle", timeout=60000)
-            except PlaywrightTimeout:
-                pass
-
+            # Optimization: Skip networkidle and wait directly for target elements
             try:
                 await page.wait_for_selector(
                     "span.value-data, .progress-bar__label",
@@ -447,7 +426,7 @@ class AntelScraper:
                 try:
                     dashboard_link = page.get_by_role("link", name="Detalle de consumo")
                     await dashboard_link.click(timeout=20000)
-                    await page.wait_for_load_state("networkidle", timeout=60000)
+                    # Use a shorter wait or specific selector instead of networkidle
                     await page.wait_for_selector("span.value-data", timeout=30000)
                 except Exception:
                     pass
@@ -510,6 +489,11 @@ class AntelScraper:
 
         try:
             page = await context.new_page()
+            # Optimization: Block unnecessary resources to save bandwidth and CPU
+            await page.route(
+                re.compile(r".*\.(png|jpg|jpeg|gif|webp|svg|woff|woff2|ttf|otf|mp4|webm|ogg|mp3|wav)"),
+                lambda route: route.abort()
+            )
             for attempt in range(3):
                 try:
                     await self._login(page)

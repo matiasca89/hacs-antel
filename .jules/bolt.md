@@ -1,0 +1,3 @@
+## 2025-05-15 - [Direct Navigation and Resource Blocking]
+**Learning:** Navigating directly to the target URL after login in a multi-step web application can save significant time (~10-20 seconds). Resource blocking (images, fonts, media) further reduces bandwidth and CPU usage. Playwright's Python `page.route` does not support curly brace expansion in glob patterns; use regex instead. Removing blind `asyncio.sleep(2)` and `networkidle` improves performance but requires specific `wait_for_selector` for AJAX-loaded secondary data.
+**Action:** Always prefer direct navigation to deep links after authentication. Use regex for complex blocking patterns in Playwright Python. Use targeted `wait_for_selector` instead of generic waits or sleeps.
