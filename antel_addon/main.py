@@ -250,8 +250,9 @@ async def main():
                         total_remaining += data.topup_balance_gb
                     update_sensor("antel_datos_restantes", total_remaining, unit="GB", icon="mdi:database-check")
 
-                if data.topup_balance_gb is not None:
-                    update_sensor("antel_saldo_recargas", data.topup_balance_gb, unit="GB", icon="mdi:database-plus")
+                # Top-up balance: if not available, expose 0 GB
+                topup_balance = data.topup_balance_gb if data.topup_balance_gb is not None else 0.0
+                update_sensor("antel_saldo_recargas", topup_balance, unit="GB", icon="mdi:database-plus")
 
                 if data.topup_expiration_date:
                     update_sensor("antel_recargas_vence", data.topup_expiration_date, icon="mdi:calendar-end")

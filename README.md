@@ -66,7 +66,7 @@ El Add-on crea los siguientes sensores automáticamente:
 | `sensor.antel_datos_usados` | Datos consumidos en el período | GB |
 | `sensor.antel_datos_totales` | Total de datos del plan | GB |
 | `sensor.antel_datos_restantes` | Datos disponibles (incluye recargas) | GB |
-| `sensor.antel_saldo_recargas` | Saldo de recargas disponible | GB |
+| `sensor.antel_saldo_recargas` | Saldo de recargas disponible (si no hay, muestra 0) | GB |
 | `sensor.antel_recargas_vence` | Vencimiento del saldo de recargas | - |
 | `sensor.antel_porcentaje_usado` | Porcentaje consumido | % |
 | `sensor.antel_consumo_hoy` | **Consumo del día actual** (se resetea a medianoche) | GB |
