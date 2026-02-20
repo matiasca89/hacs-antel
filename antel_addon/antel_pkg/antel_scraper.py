@@ -295,10 +295,20 @@ class AntelScraper:
             raw_data["card_text_sample"] = card_text[:500] if card_text else None
             if card_text:
                 _LOGGER.info("Card text sample: %s", card_text[:200])
+
+                # Fallback parse for plan usage values if progress labels are absent
+                if data.used_data_gb is None:
+                    used_fallback = re.search(r"Consumidos\s*([\d.,]+)\s*GB", card_text, re.IGNORECASE)
+                    if used_fallback:
+                        data.used_data_gb = self._parse_data_value(used_fallback.group(1) + " GB")
+                        _LOGGER.info("Used data found in card text: %s", data.used_data_gb)
+
                 # Try different patterns for recarga balance
                 topup_match = re.search(r"Saldo de recargas[\.:]?\s*([\d.,]+)\s*GB", card_text, re.IGNORECASE)
                 if not topup_match:
                     topup_match = re.search(r"Recarga datos.*?Me quedan\s*([\d.,]+)\s*GB", card_text, re.IGNORECASE | re.DOTALL)
+                if not topup_match:
+                    topup_match = re.search(r"Recarga datos.*?([\d.,]+)\s*GB", card_text, re.IGNORECASE | re.DOTALL)
 
                 if topup_match:
                     topup_text = topup_match.group(1).strip() + " GB"
@@ -350,9 +360,12 @@ class AntelScraper:
                     data.plan_name = plan_match.group(1).strip()
                     raw_data["plan_name"] = data.plan_name
 
-            # Calculate remaining and percentage if needed
+            # Calculate missing fields if needed
             if data.remaining_data_gb is None and data.used_data_gb is not None and data.total_data_gb is not None:
                 data.remaining_data_gb = data.total_data_gb - data.used_data_gb
+
+            if data.total_data_gb is None and data.used_data_gb is not None and data.remaining_data_gb is not None:
+                data.total_data_gb = data.used_data_gb + data.remaining_data_gb
 
             if data.used_data_gb is not None and data.total_data_gb is not None:
                 if data.total_data_gb > 0:
