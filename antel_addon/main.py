@@ -57,7 +57,8 @@ def calculate_renewal_dates(renewal_day: int):
     day_this_month = min(renewal_day, days_in_month)
 
     # Next renewal date
-    if today.day <= day_this_month:
+    # On renewal day itself, consider the NEXT cycle (so remaining days is not 0)
+    if today.day < day_this_month:
         renewal_date = date(today.year, today.month, day_this_month)
     else:
         year = today.year + (1 if today.month == 12 else 0)
