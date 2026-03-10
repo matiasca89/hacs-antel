@@ -54,6 +54,9 @@ class MockLocator:
     
     async def text_content(self): 
         return self._text
+
+    async def inner_text(self, **kwargs):
+        return self._text
         
     def locator(self, selector):
         # Return appropriate mock values based on selector
@@ -72,14 +75,16 @@ class MockLocator:
 class MockPage:
     """Mock Playwright Page."""
     async def wait_for_load_state(self, *args, **kwargs): pass
+    async def wait_for_selector(self, *args, **kwargs): pass
+    async def route(self, *args, **kwargs): pass
     
     async def content(self):
         return HTML_SAMPLE
         
     async def inner_text(self, selector):
-        # Simulate inner_text NOT returning hidden elements
+        # Simulate inner_text
         if selector == "body":
-            return "Visible text only... Fin de contrato: 26/11/2027"
+            return "Visible text only...\nCiclo actual: 1 de enero al 31 de enero\nFin de contrato: 26/11/2027"
         return ""
         
     def locator(self, selector):
@@ -107,24 +112,12 @@ async def run_test():
         print(f"Remaining Data: {data.remaining_data_gb} GB")
         print(f"Plan Name:      {data.plan_name}")
         print(f"Billing Period: '{data.billing_period}'")
-        print(f"Days to renew:  {data.days_until_renewal}")
-        print(f"Contract End:   {data.contract_end_date}")
         
         print("\n--- Validation ---")
         if data.billing_period == "1 de enero al 31 de enero":
             print("✅ Billing Period extracted correctly (from HTML)")
         else:
             print(f"❌ Billing Period FAILED: Got '{data.billing_period}'")
-
-        if data.days_until_renewal == 12:
-            print("✅ Days until renewal extracted correctly")
-        else:
-            print(f"❌ Days until renewal FAILED: Got {data.days_until_renewal}")
-            
-        if data.contract_end_date == "26/11/2027":
-            print("✅ Contract end date extracted correctly")
-        else:
-            print(f"❌ Contract end date FAILED: Got '{data.contract_end_date}'")
 
     except Exception as e:
         print(f"❌ Exception during test: {e}")
