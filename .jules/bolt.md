@@ -1,0 +1,3 @@
+## 2025-05-14 - Scraper Navigation & Resource Optimization
+**Learning:** Direct navigation to deep URLs in Playwright bypasses multiple intermediate page loads and UI interaction delays. Blocking non-essential assets (images, fonts, tracking) significantly reduces bandwidth and CPU overhead, which is critical for Home Assistant Add-ons running on low-power hardware. Replacing `networkidle` with `wait_for_selector` or `domcontentloaded` removes a mandatory 500ms delay and avoids timeouts caused by persistent background network activity.
+**Action:** Always prefer direct navigation to target data pages after authentication. Use `page.route` to block unneeded assets. Use specific element-based waits instead of generic network-idle states.

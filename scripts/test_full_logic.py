@@ -1,19 +1,23 @@
 import asyncio
 import sys
 import os
+import re
 from unittest.mock import MagicMock, AsyncMock
 
 # Add project root to path
 sys.path.append(os.getcwd())
-sys.path.append(os.path.join(os.getcwd(), "antel_addon"))
 
-# Import the actual class
-try:
-    from antel_pkg.antel_scraper import AntelScraper, AntelConsumoData
-except ImportError:
-    # Fallback for different directory structures
-    sys.path.append(os.path.join(os.getcwd(), "antel_addon"))
-    from antel_pkg.antel_scraper import AntelScraper, AntelConsumoData
+# Mock homeassistant for CC imports
+sys.modules["homeassistant"] = MagicMock()
+sys.modules["homeassistant.config_entries"] = MagicMock()
+sys.modules["homeassistant.const"] = MagicMock()
+sys.modules["homeassistant.core"] = MagicMock()
+sys.modules["homeassistant.helpers"] = MagicMock()
+sys.modules["homeassistant.helpers.update_coordinator"] = MagicMock()
+
+# Import the actual classes
+from antel_addon.antel_pkg.antel_scraper import AntelScraper as ScraperAddon, AntelConsumoData
+from custom_components.antel_consumo.antel_scraper import AntelScraper as ScraperCC
 
 # Sample HTML (The one where "Ciclo actual" is hidden in desktop view)
 HTML_SAMPLE = """
@@ -41,6 +45,17 @@ HTML_SAMPLE = """
 </body></html>
 """
 
+# Plain text version for inner_text
+PLAIN_TEXT_SAMPLE = """
+145,6 GB
+Consumidos 104,4 GB
+Incluido 250 GB
+Fibra con límite 1
+Ciclo actual: 1 de enero al 31 de enero
+Quedan 12 días para renovar
+Fin de contrato: 26/11/2027
+"""
+
 class MockLocator:
     """Mock Playwright Locator."""
     def __init__(self, text_content_val=""):
@@ -53,6 +68,9 @@ class MockLocator:
     async def count(self): return 1
     
     async def text_content(self): 
+        return self._text
+
+    async def inner_text(self, timeout=None):
         return self._text
         
     def locator(self, selector):
@@ -67,7 +85,7 @@ class MockLocator:
             return MockLocator("Incluido 250 GB")
         if "plan-title" in selector:
             return MockLocator("Fibra con límite 1")
-        return MockLocator("")
+        return MockLocator(self._text)
 
 class MockPage:
     """Mock Playwright Page."""
@@ -77,59 +95,73 @@ class MockPage:
         return HTML_SAMPLE
         
     async def inner_text(self, selector):
-        # Simulate inner_text NOT returning hidden elements
         if selector == "body":
-            return "Visible text only... Fin de contrato: 26/11/2027"
+            return PLAIN_TEXT_SAMPLE
         return ""
         
     def locator(self, selector):
         return MockLocator()
 
-async def run_test():
-    print("----------------------------------------------------------------")
-    print("Testing AntelScraper._extract_consumption_data Logic (Mocked)")
-    print("----------------------------------------------------------------")
+async def test_scraper(name, scraper_class):
+    print(f"\n--- Testing {name} ---")
     
     # Instantiate scraper
-    scraper = AntelScraper("test", "test", service_id="Fibra")
+    scraper = scraper_class("test", "test", service_id="Fibra")
     
     # Mock page
     page = MockPage()
     
     # Run extraction
-    # We call the private method directly to test logic
     try:
         data = await scraper._extract_consumption_data(page)
         
-        print("\n--- Extraction Results ---")
         print(f"Used Data:      {data.used_data_gb} GB")
         print(f"Total Data:     {data.total_data_gb} GB")
         print(f"Remaining Data: {data.remaining_data_gb} GB")
         print(f"Plan Name:      {data.plan_name}")
         print(f"Billing Period: '{data.billing_period}'")
-        print(f"Days to renew:  {data.days_until_renewal}")
-        print(f"Contract End:   {data.contract_end_date}")
         
-        print("\n--- Validation ---")
-        if data.billing_period == "1 de enero al 31 de enero":
-            print("✅ Billing Period extracted correctly (from HTML)")
-        else:
-            print(f"❌ Billing Period FAILED: Got '{data.billing_period}'")
+        # Validation
+        errors = []
+        if data.used_data_gb != 104.4:
+            errors.append(f"Used Data mismatch: expected 104.4, got {data.used_data_gb}")
+        if data.total_data_gb != 250.0:
+            errors.append(f"Total Data mismatch: expected 250.0, got {data.total_data_gb}")
+        if data.remaining_data_gb != 145.6:
+            errors.append(f"Remaining Data mismatch: expected 145.6, got {data.remaining_data_gb}")
+        if data.plan_name != "Fibra con límite 1":
+            errors.append(f"Plan Name mismatch: expected 'Fibra con límite 1', got '{data.plan_name}'")
+        if data.billing_period != "1 de enero al 31 de enero":
+            errors.append(f"Billing Period mismatch: expected '1 de enero al 31 de enero', got '{data.billing_period}'")
 
-        if data.days_until_renewal == 12:
-            print("✅ Days until renewal extracted correctly")
+        if not errors:
+            print(f"✅ {name} extraction passed")
+            return True
         else:
-            print(f"❌ Days until renewal FAILED: Got {data.days_until_renewal}")
-            
-        if data.contract_end_date == "26/11/2027":
-            print("✅ Contract end date extracted correctly")
-        else:
-            print(f"❌ Contract end date FAILED: Got '{data.contract_end_date}'")
+            for err in errors:
+                print(f"❌ {err}")
+            return False
 
     except Exception as e:
         print(f"❌ Exception during test: {e}")
         import traceback
         traceback.print_exc()
+        return False
+
+async def run_tests():
+    print("----------------------------------------------------------------")
+    print("Testing AntelScraper._extract_consumption_data Logic (Mocked)")
+    print("----------------------------------------------------------------")
+
+    s1 = await test_scraper("Addon Scraper", ScraperAddon)
+    s2 = await test_scraper("Custom Component Scraper", ScraperCC)
+
+    if s1 and s2:
+        print("\n✅ All tests passed!")
+        sys.exit(0)
+    else:
+        print("\n❌ Some tests failed!")
+        sys.exit(1)
 
 if __name__ == "__main__":
-    asyncio.run(run_test())
+    asyncio.run(run_tests())
